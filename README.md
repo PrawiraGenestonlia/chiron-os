@@ -17,22 +17,23 @@ You manage AI teams like a manager -- monitoring activity, providing feedback, a
 
 ## Prerequisites
 
-- **Node.js** >= 20
-- **pnpm** >= 9
-- An **Anthropic API key** (or [Claude Code](https://claude.ai/claude-code) installed for automatic auth)
+- **git**
+- **[Claude Code](https://claude.ai/claude-code)** installed and authenticated (recommended -- free, no API key needed)
+  - Alternatively, an Anthropic API key
+
+> Node.js and pnpm are installed automatically by `install.sh` if not present.
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/anthropics/chiron-os.git
 cd chiron-os
-pnpm install
-pnpm setup
+./install.sh
 ```
 
-The setup script initializes the database, seeds default personas, and creates a template config file.
+The install script checks prerequisites (git, Node.js, pnpm), installs anything missing, sets up the database, seeds default personas, and creates a template config file.
 
-**Configure your API key** (pick one method):
+If you have **Claude Code** installed and authenticated, you're ready to go -- no API key needed. Otherwise, configure one:
 
 ```bash
 # Option A: Edit the generated config file
@@ -40,8 +41,6 @@ echo '{ "apiKey": "sk-ant-your-key-here" }' > chiron.config.json
 
 # Option B: Use an environment variable
 export ANTHROPIC_API_KEY="sk-ant-your-key-here"
-
-# Option C: If you have Claude Code installed, auth is automatic
 ```
 
 Then start the dev server and open **http://localhost:4173**:
@@ -167,10 +166,9 @@ WebSocket at `ws://localhost:4173/ws` for real-time events (`message:new`, `agen
 Contributions are welcome. Here's how to get started:
 
 1. **Fork and clone** the repository
-2. **Install dependencies**: `pnpm install`
-3. **Set up the database**: `pnpm db:push && pnpm db:seed`
-4. **Start developing**: `pnpm dev`
-5. **Verify your changes**: `pnpm build` must pass with zero errors before submitting
+2. **Run `./install.sh`** to set up dependencies and database
+3. **Start developing**: `pnpm dev`
+4. **Verify your changes**: `pnpm build` must pass with zero errors before submitting
 
 ### Project Structure
 
