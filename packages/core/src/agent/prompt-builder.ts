@@ -1,4 +1,4 @@
-import { getTeamById, getPersonaById, getAgentsByTeam, getChannelsByTeam } from "@chiron-os/db";
+import { getTeamById, getPersonaById, getAgentsByTeam, getChannelsByTeam, getMemoriesByTeam } from "@chiron-os/db";
 
 interface PromptContext {
   agentId: string;
@@ -6,6 +6,7 @@ interface PromptContext {
   teamId: string;
   personaId: string;
   workspacePath: string;
+  mcpServerNames?: string[];
 }
 
 export function buildSystemPrompt(ctx: PromptContext): string {
@@ -28,6 +29,61 @@ export function buildSystemPrompt(ctx: PromptContext): string {
 
   const channelList = channels.map((c) => `- #${c.name}: ${c.topic ?? c.type}`).join("\n");
 
+  // Build learnings section
+  const memories = getMemoriesByTeam(ctx.teamId);
+  const recentLearnings = memories.slice(-20);
+  let learningsSection = "";
+  if (recentLearnings.length > 0) {
+    const learningLines = recentLearnings
+      .map((m) => `- [${m.category}] ${m.content}`)
+      .join("\n");
+    learningsSection = `
+
+## Team Learnings
+
+Previous insights saved by the team:
+${learningLines}
+`;
+  }
+
+  // Build external MCP servers section
+  let mcpSection = "";
+  if (ctx.mcpServerNames && ctx.mcpServerNames.length > 0) {
+    const serverList = ctx.mcpServerNames.map((n) => `- ${n}`).join("\n");
+    mcpSection = `
+
+You also have access to external MCP tool servers:
+${serverList}
+
+Use these to gather insights about user behavior, codebase state, etc.`;
+  }
+
+  // PM proactive section
+  let pmProactiveSection = "";
+  if (persona.shortCode === "pm") {
+    pmProactiveSection = `
+
+## Proactive Product Leadership
+
+You are not a passive PM who waits for instructions. You drive the product forward.
+
+When you receive a "[System: Idle Check]" message:
+- **User perspective**: Review app files. What would a real user think?
+- **Feature gaps**: What features would users expect?
+- **Quality bar**: Would you ship this to production?
+- **Testing**: Are there tests? Would QA be satisfied?
+- **Documentation**: Could a new dev onboard from the README?
+
+When you find improvements:
+1. Post analysis to #planning
+2. Create prioritized tasks
+3. Assign to team members
+4. Save decisions using save_learning
+5. Follow up — don't just delegate
+
+If genuinely polished, stay silent. Don't invent busywork.`;
+  }
+
   return `${persona.basePrompt}
 
 ---
@@ -44,7 +100,7 @@ ${otherAgents || "No other agents yet"}
 
 ### Available Channels
 ${channelList}
-
+${learningsSection}
 ## Workspace
 
 Your working directory is: ${ctx.workspacePath}
@@ -63,8 +119,11 @@ You have access to the following Chiron OS tools via MCP:
 - **call_vote** — Start a vote for team decisions
 - **cast_vote** — Vote on an active vote
 - **escalate** — Escalate an issue to the human operator
+- **save_learning** — Save a team insight or decision for future reference
+- **get_learnings** — Retrieve saved team learnings and past decisions
 
 You also have access to standard Claude Code tools (Read, Write, Edit, Bash, Glob, Grep) for working on code within your workspace.
+${mcpSection}
 
 Use the Chiron OS tools to communicate with your teammates, track work progress, and coordinate on the team's goal. Use the standard tools to actually build, read, and modify project files.
 
@@ -106,6 +165,7 @@ When updating tasks:
 When the team's goal is fully achieved (all tasks done, code working, tests passing):
 1. PM posts a final **"PROJECT COMPLETE"** message to #planning summarizing deliverables
 2. Each agent confirms completion with a brief message
-3. **After confirming completion, STOP sending messages.** Do not keep chatting. Wait silently for new instructions from the human operator. Only respond if a teammate or human sends a new message requiring action.
+3. After confirming completion, wait for new instructions or system idle checks. Only respond if a teammate, human, or system sends a new message requiring action.
+${pmProactiveSection}
 `;
 }

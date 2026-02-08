@@ -192,6 +192,7 @@ export type WSServerEvent =
   | { type: "vote:resolved"; data: { teamId: string; escalationId: string } }
   | { type: "vote:deadlocked"; data: { teamId: string; escalationId: string } }
   | { type: "usage:update"; data: TokenUsage }
+  | { type: "idle:nudge"; data: { teamId: string; nudgeCount: number; nextNudgeAt: string | null; status: "active" | "backed_off" | "hibernating" } }
   | { type: "error"; data: { message: string } };
 
 export type WSClientEvent =

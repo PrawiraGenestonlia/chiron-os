@@ -13,6 +13,8 @@ interface Config {
   agentModelOverrides: Record<string, string>;
   mcpServers: Record<string, McpServerConfig>;
   maxBudgetUsd?: number;
+  idleNudgeIntervalMinutes?: number;
+  idleNudgeBudgetThreshold?: number;
   _configPath?: string;
 }
 
@@ -61,6 +63,8 @@ export default function ConfigPage() {
           agentModelOverrides: config.agentModelOverrides,
           mcpServers,
           maxBudgetUsd: config.maxBudgetUsd,
+          idleNudgeIntervalMinutes: config.idleNudgeIntervalMinutes,
+          idleNudgeBudgetThreshold: config.idleNudgeBudgetThreshold,
         }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -191,6 +195,57 @@ export default function ConfigPage() {
             />
             <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
               Maximum USD spend across all agents. Leave empty for no limit.
+            </p>
+          </Label>
+        </Section>
+
+        {/* Idle Nudge */}
+        <Section title="Idle Nudge (Always-On Agents)">
+          <Label text="Nudge Interval (minutes)">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={config.idleNudgeIntervalMinutes ?? 15}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  idleNudgeIntervalMinutes: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                })
+              }
+              className="w-48 px-3 py-2 rounded-md border font-mono text-sm focus:outline-none focus:ring-1"
+              style={{
+                backgroundColor: "var(--background)",
+                borderColor: "var(--border)",
+                color: "var(--foreground)",
+              }}
+            />
+            <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+              How often to nudge idle teams (0 = disabled). Default: 15 minutes.
+            </p>
+          </Label>
+          <Label text="Budget Threshold (0-1)">
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step="0.05"
+              value={config.idleNudgeBudgetThreshold ?? 0.8}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  idleNudgeBudgetThreshold: e.target.value ? parseFloat(e.target.value) : undefined,
+                })
+              }
+              className="w-48 px-3 py-2 rounded-md border font-mono text-sm focus:outline-none focus:ring-1"
+              style={{
+                backgroundColor: "var(--background)",
+                borderColor: "var(--border)",
+                color: "var(--foreground)",
+              }}
+            />
+            <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+              Skip nudges when team cost exceeds this fraction of max budget. Default: 0.8 (80%).
             </p>
           </Label>
         </Section>

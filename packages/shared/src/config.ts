@@ -27,6 +27,8 @@ export interface ChironConfig {
   agentModelOverrides: Record<string, string>;
   mcpServers: Record<string, McpServerConfig>;
   maxBudgetUsd?: number;
+  idleNudgeIntervalMinutes?: number;
+  idleNudgeBudgetThreshold?: number;
 }
 
 const DEFAULT_CONFIG: ChironConfig = {
@@ -68,6 +70,23 @@ export function loadConfig(projectRoot: string): ChironConfig {
   }
 
   return { ...DEFAULT_CONFIG };
+}
+
+export type ApiKeySource = "config" | "env" | "claude-code" | "none";
+
+export function detectApiKeySource(config: ChironConfig): ApiKeySource {
+  if (config.apiKey) return "config";
+  if (process.env.ANTHROPIC_API_KEY) return "env";
+  const credentialsPath = join(homedir(), ".claude", ".credentials.json");
+  if (existsSync(credentialsPath)) {
+    try {
+      const creds = JSON.parse(readFileSync(credentialsPath, "utf-8"));
+      if (creds.apiKey) return "claude-code";
+    } catch {
+      // Ignore malformed credentials
+    }
+  }
+  return "none";
 }
 
 export function resolveApiKey(config: ChironConfig): string | undefined {

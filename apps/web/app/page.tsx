@@ -1,5 +1,5 @@
 import { getAllTeams, getAgentsByTeam, getTasksByTeam } from "@chiron-os/db";
-import { loadConfig, resolveApiKey } from "@chiron-os/shared";
+import { loadConfig, detectApiKeySource } from "@chiron-os/shared";
 import Link from "next/link";
 import { CreateTeamDialog } from "@/components/team/create-team-dialog";
 
@@ -8,12 +8,12 @@ export const dynamic = "force-dynamic";
 export default function HomePage() {
   const teams = getAllTeams();
   const config = loadConfig(process.cwd());
-  const hasApiKey = !!resolveApiKey(config);
+  const apiKeySource = detectApiKeySource(config);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
       {/* API key warning */}
-      {!hasApiKey && (
+      {apiKeySource === "none" && (
         <div
           className="mb-6 px-4 py-3 rounded-lg border text-sm flex items-center gap-3"
           style={{
@@ -29,6 +29,21 @@ export default function HomePage() {
           <span style={{ color: "var(--muted-foreground)" }}>
             or set <code className="text-xs">ANTHROPIC_API_KEY</code> env var.
           </span>
+        </div>
+      )}
+      {apiKeySource === "claude-code" && (
+        <div
+          className="mb-6 px-4 py-3 rounded-lg border text-sm flex items-center gap-2"
+          style={{
+            backgroundColor: "rgba(99,102,241,0.1)",
+            borderColor: "rgba(99,102,241,0.3)",
+            color: "#a5b4fc",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm-.75 3.75a.75.75 0 011.5 0v4a.75.75 0 01-1.5 0v-4zm.75 7a.75.75 0 100-1.5.75.75 0 000 1.5z" fill="currentColor" opacity="0.7"/>
+          </svg>
+          <span>Using Claude Code authentication.</span>
         </div>
       )}
 

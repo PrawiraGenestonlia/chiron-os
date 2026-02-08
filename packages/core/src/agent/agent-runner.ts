@@ -93,6 +93,15 @@ function createBusMcpServerForAgent(ctx: BusMcpContext) {
         reason: z.string().describe("Detailed reason — include what went wrong, what you need, and suggestions"),
         channel: z.optional(z.string()).describe("Channel for the escalation (default: escalations)"),
       }, busHandler(ctx, "escalate")),
+
+      tool("save_learning", "Save a team learning or insight for future reference. All team members will see saved learnings.", {
+        category: z.string().describe("Category (e.g., 'technical', 'process', 'design', 'user_feedback', 'decision')"),
+        content: z.string().describe("The learning or insight to save"),
+      }, busHandler(ctx, "save_learning")),
+
+      tool("get_learnings", "Retrieve saved team learnings and past decisions.", {
+        category: z.optional(z.string()).describe("Filter by category, or omit for all"),
+      }, busHandler(ctx, "get_learnings")),
     ],
   });
 }
@@ -200,12 +209,15 @@ export class AgentRunner extends EventEmitter {
 
     this.setStatus("running");
 
+    const mcpServerNames = Object.keys(config.mcpServers);
+
     const systemPrompt = buildSystemPrompt({
       agentId: this.config.agentId,
       agentName: this.config.agentName,
       teamId: this.config.teamId,
       personaId: this.config.personaId,
       workspacePath: this.config.workspacePath,
+      mcpServerNames: mcpServerNames.length > 0 ? mcpServerNames : undefined,
     });
 
     // Create in-process MCP server with bus tools

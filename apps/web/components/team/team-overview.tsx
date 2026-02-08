@@ -22,6 +22,8 @@ interface TeamOverviewProps {
   initialMessages: MessageWithChannel[];
 }
 
+type IdleStatus = "active" | "backed_off" | "hibernating" | null;
+
 export function TeamOverview({
   teamId,
   teamName,
@@ -40,6 +42,7 @@ export function TeamOverview({
   const [cost, setCost] = useState(initialCost);
   const [messages, setMessages] = useState<MessageWithChannel[]>(initialMessages);
   const [, setTick] = useState(0);
+  const [idleStatus, setIdleStatus] = useState<IdleStatus>(null);
 
   const { appendChunk, getBuffers, setTrigger } = useStreamBuffers();
 
@@ -90,6 +93,9 @@ export function TeamOverview({
           });
           break;
         }
+        case "idle:nudge":
+          setIdleStatus(event.data.status);
+          break;
       }
     },
     [appendChunk]
@@ -160,6 +166,11 @@ export function TeamOverview({
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#ef4444" }} />
           {openEscalations} escalation{openEscalations !== 1 ? "s" : ""} need human review
         </div>
+      )}
+
+      {/* Idle monitor status */}
+      {idleStatus && (
+        <IdleStatusBadge status={idleStatus} />
       )}
 
       {/* Agent activity */}
@@ -247,6 +258,24 @@ function MetricCard({
       <div className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
         {sub}
       </div>
+    </div>
+  );
+}
+
+function IdleStatusBadge({ status }: { status: "active" | "backed_off" | "hibernating" }) {
+  const config = {
+    active: { label: "Idle Monitor: Active", color: "#22c55e", bg: "rgba(34,197,94,0.1)" },
+    backed_off: { label: "Idle Monitor: Backed Off", color: "#eab308", bg: "rgba(234,179,8,0.1)" },
+    hibernating: { label: "Idle Monitor: Hibernating", color: "#6b7280", bg: "rgba(107,114,128,0.1)" },
+  }[status];
+
+  return (
+    <div
+      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium"
+      style={{ backgroundColor: config.bg, color: config.color }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: config.color }} />
+      {config.label}
     </div>
   );
 }

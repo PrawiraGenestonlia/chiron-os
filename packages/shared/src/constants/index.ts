@@ -26,6 +26,13 @@ export const AGENT_MAX_RESTART_ATTEMPTS = 5;
 export const AGENT_RESTART_BACKOFF_BASE_MS = 1000;
 export const AGENT_RESTART_BACKOFF_MAX_MS = 60000;
 
+// ── Idle Nudge ───────────────────────────────────────────
+export const IDLE_NUDGE_DEFAULT_INTERVAL_MS = 15 * 60 * 1000;
+export const IDLE_NUDGE_MAX_INTERVAL_MS = 2 * 60 * 60 * 1000;
+export const IDLE_NUDGE_OBSERVATION_WINDOW_MS = 5 * 60 * 1000;
+export const IDLE_NUDGE_MAX_FRUITLESS = 3;
+export const IDLE_NUDGE_DEFAULT_BUDGET_THRESHOLD = 0.8;
+
 // ── Message Pagination ────────────────────────────────────
 export const MESSAGES_DEFAULT_LIMIT = 50;
 export const MESSAGES_MAX_LIMIT = 200;

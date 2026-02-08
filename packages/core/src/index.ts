@@ -1,5 +1,6 @@
 export { AgentRunner, type AgentRunnerConfig } from "./agent/agent-runner.js";
 export { LifecycleManager } from "./agent/lifecycle-manager.js";
+export { IdleMonitor, type IdleMonitorConfig } from "./agent/idle-monitor.js";
 export { buildSystemPrompt } from "./agent/prompt-builder.js";
 export { MessageBus } from "./bus/message-bus.js";
 export { ensureTeamChannels } from "./bus/channel-manager.js";

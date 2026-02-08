@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "@/components/ui/toast";
+
+interface Learning {
+  id: string;
+  teamId: string;
+  agentId: string | null;
+  category: string;
+  content: string;
+  createdAt: string;
+}
 
 interface TeamSettingsProps {
   teamId: string;
@@ -131,6 +140,9 @@ export function TeamSettings({ teamId, initialName, initialGoal, initialWorkspac
         </div>
       </div>
 
+      {/* Team Learnings */}
+      <LearningsSection teamId={teamId} />
+
       {/* Danger Zone */}
       <div
         className="rounded-lg border p-5"
@@ -169,6 +181,97 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+function LearningsSection({ teamId }: { teamId: string }) {
+  const [learnings, setLearnings] = useState<Learning[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchLearnings = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/learnings`);
+      if (res.ok) {
+        const data = await res.json();
+        setLearnings(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch learnings:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [teamId]);
+
+  useEffect(() => {
+    fetchLearnings();
+  }, [fetchLearnings]);
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/learnings/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setLearnings((prev) => prev.filter((l) => l.id !== id));
+        toast("Learning deleted", "success");
+      } else {
+        toast("Failed to delete", "error");
+      }
+    } catch (err) {
+      console.error("Failed to delete learning:", err);
+      toast("Failed to delete", "error");
+    }
+  };
+
+  return (
+    <div
+      className="rounded-lg border p-5"
+      style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
+    >
+      <h2 className="font-semibold mb-4" style={{ color: "var(--card-foreground)" }}>
+        Team Learnings
+      </h2>
+      <p className="text-xs mb-3" style={{ color: "var(--muted-foreground)" }}>
+        Insights and decisions saved by agents during work. These are injected into agent system prompts.
+      </p>
+      {loading ? (
+        <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Loading...</p>
+      ) : learnings.length === 0 ? (
+        <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+          No learnings saved yet. Agents will save insights as they work.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {learnings.map((learning) => (
+            <div
+              key={learning.id}
+              className="flex items-start justify-between gap-3 p-3 rounded border"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <div className="flex-1 min-w-0">
+                <span
+                  className="inline-block text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded mb-1"
+                  style={{ backgroundColor: "rgba(139,92,246,0.15)", color: "#a78bfa" }}
+                >
+                  {learning.category}
+                </span>
+                <p className="text-sm" style={{ color: "var(--foreground)" }}>
+                  {learning.content}
+                </p>
+                <p className="text-[10px] mt-1" style={{ color: "var(--muted-foreground)" }}>
+                  {new Date(learning.createdAt).toLocaleString()}
+                </p>
+              </div>
+              <button
+                onClick={() => handleDelete(learning.id)}
+                className="text-xs px-2 py-1 rounded border transition-colors hover:bg-red-500/10 shrink-0"
+                style={{ borderColor: "#ef444440", color: "#ef4444" }}
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

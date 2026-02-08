@@ -27,6 +27,7 @@ function broadcast(teamId: string, event: unknown) {
 
 // Global lifecycle manager and escalation manager — shared with API routes via globalThis
 const lifecycle = new LifecycleManager();
+lifecycle.resetStaleAgentStatuses();
 const escalationManager = new EscalationManager();
 lifecycle.setEscalationManager(escalationManager);
 
@@ -66,6 +67,10 @@ lifecycle.on("team:status", (data: { teamId: string; status: string }) => {
 
 lifecycle.on("bus:message", (data: { teamId: string; message: unknown }) => {
   broadcast(data.teamId, { type: "message:new", data: data.message });
+});
+
+lifecycle.on("idle:nudge", (data: { teamId: string; nudgeCount: number; nextNudgeAt: string | null; status: string }) => {
+  broadcast(data.teamId, { type: "idle:nudge", data });
 });
 
 // Expose managers globally for API routes

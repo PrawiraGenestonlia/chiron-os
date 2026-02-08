@@ -1,5 +1,5 @@
 import { MessageBus } from "../bus/message-bus.js";
-import { createTask, updateTask, getTasksByTeam, getTaskById } from "@chiron-os/db";
+import { createTask, updateTask, getTasksByTeam, getTaskById, createMemory, getMemoriesByTeam } from "@chiron-os/db";
 import type { TaskCreate, TaskUpdate } from "@chiron-os/shared";
 import { EscalationManager } from "../escalation/escalation-manager.js";
 
@@ -20,7 +20,9 @@ export type BusToolName =
   | "list_tasks"
   | "call_vote"
   | "cast_vote"
-  | "escalate";
+  | "escalate"
+  | "save_learning"
+  | "get_learnings";
 
 export interface BusToolResult {
   content: Array<{ type: "text"; text: string }>;
@@ -50,6 +52,10 @@ export function handleBusTool(
         return handleCastVote(ctx, input);
       case "escalate":
         return handleEscalate(ctx, input);
+      case "save_learning":
+        return handleSaveLearning(ctx, input);
+      case "get_learnings":
+        return handleGetLearnings(ctx, input);
       default:
         return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
     }
@@ -265,6 +271,39 @@ function handleEscalate(ctx: BusMcpContext, input: Record<string, unknown>): Bus
   return { content: [{ type: "text", text: `Escalation created (id: ${escalation.id}). Human will be notified.` }] };
 }
 
+function handleSaveLearning(ctx: BusMcpContext, input: Record<string, unknown>): BusToolResult {
+  const category = input.category as string;
+  const content = input.content as string;
+
+  if (!category || !content) {
+    return { content: [{ type: "text", text: "category and content are required" }], isError: true };
+  }
+
+  const memory = createMemory({
+    teamId: ctx.teamId,
+    agentId: ctx.agentId,
+    category,
+    content,
+  });
+
+  return { content: [{ type: "text", text: `Learning saved (id: ${memory.id}, category: ${category})` }] };
+}
+
+function handleGetLearnings(ctx: BusMcpContext, input: Record<string, unknown>): BusToolResult {
+  const category = input.category as string | undefined;
+  const memories = getMemoriesByTeam(ctx.teamId, category);
+
+  if (memories.length === 0) {
+    return { content: [{ type: "text", text: category ? `No learnings found for category "${category}"` : "No learnings saved yet" }] };
+  }
+
+  const formatted = memories
+    .map((m) => `- [${m.category}] ${m.content} (saved: ${m.createdAt})`)
+    .join("\n");
+
+  return { content: [{ type: "text", text: formatted }] };
+}
+
 export const BUS_TOOL_DEFINITIONS = [
   {
     name: "send_message",
@@ -391,6 +430,35 @@ export const BUS_TOOL_DEFINITIONS = [
         channel: { type: "string", description: "Channel for the escalation (default: escalations)" },
       },
       required: ["reason"],
+    },
+  },
+  {
+    name: "save_learning",
+    description: "Save a team learning, insight, or decision for future reference. All team members will see saved learnings in their system prompt.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          description: "Category (e.g., 'technical', 'process', 'design', 'user_feedback', 'decision')",
+        },
+        content: { type: "string", description: "The learning or insight to save" },
+      },
+      required: ["category", "content"],
+    },
+  },
+  {
+    name: "get_learnings",
+    description: "Retrieve saved team learnings and past decisions",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          description: "Filter by category, or omit for all",
+        },
+      },
+      required: [],
     },
   },
 ];

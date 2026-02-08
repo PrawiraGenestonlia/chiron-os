@@ -2,17 +2,27 @@ import { EventEmitter } from "node:events";
 import { mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { AgentRunner, type AgentRunnerConfig } from "./agent-runner.js";
+import { IdleMonitor } from "./idle-monitor.js";
 import { MessageBus } from "../bus/message-bus.js";
 import { TokenTracker } from "../tracking/token-tracker.js";
 import {
   getAgentsByTeam,
   getTeamById,
+  getAllTeams,
   updateTeam,
   updateAgentStatus,
   createAgent,
+  getPersonaById,
 } from "@chiron-os/db";
 import { EscalationManager } from "../escalation/escalation-manager.js";
-import { loadConfig, AGENT_MAX_RESTART_ATTEMPTS, AGENT_RESTART_BACKOFF_BASE_MS, AGENT_RESTART_BACKOFF_MAX_MS } from "@chiron-os/shared";
+import {
+  loadConfig,
+  AGENT_MAX_RESTART_ATTEMPTS,
+  AGENT_RESTART_BACKOFF_BASE_MS,
+  AGENT_RESTART_BACKOFF_MAX_MS,
+  IDLE_NUDGE_DEFAULT_INTERVAL_MS,
+  IDLE_NUDGE_DEFAULT_BUDGET_THRESHOLD,
+} from "@chiron-os/shared";
 import type { AgentStatus, AgentCreate } from "@chiron-os/shared";
 
 interface AgentEntry {
@@ -25,6 +35,7 @@ interface AgentEntry {
 export class LifecycleManager extends EventEmitter {
   private agents = new Map<string, AgentEntry>();
   private buses = new Map<string, MessageBus>();
+  private idleMonitors = new Map<string, IdleMonitor>();
   private tokenTracker = new TokenTracker();
   private escalationManager?: EscalationManager;
 
@@ -79,9 +90,17 @@ export class LifecycleManager extends EventEmitter {
     if (!bus) {
       bus = new MessageBus(teamId);
       this.buses.set(teamId, bus);
-      // Re-emit bus messages for WebSocket broadcasting
+      // Re-emit bus messages for WebSocket broadcasting + idle monitor activity
       bus.on("message", (message) => {
         this.emit("bus:message", { teamId, message });
+        const monitor = this.idleMonitors.get(teamId);
+        if (monitor) {
+          if ((message as { authorRole?: string }).authorRole === "human") {
+            monitor.recordHumanActivity();
+          } else {
+            monitor.recordActivity();
+          }
+        }
       });
     }
     return bus;
@@ -243,6 +262,60 @@ export class LifecycleManager extends EventEmitter {
       await this.startAgent(agent.id);
     }
 
+    // Start idle monitor if configured
+    const config = loadConfig(process.cwd());
+    const intervalMinutes = config.idleNudgeIntervalMinutes ?? 15;
+    const intervalMs = intervalMinutes > 0
+      ? intervalMinutes * 60 * 1000
+      : 0;
+
+    if (intervalMs > 0) {
+      // Stop any existing monitor for this team
+      const existingMonitor = this.idleMonitors.get(teamId);
+      if (existingMonitor) existingMonitor.stop();
+
+      const monitor = new IdleMonitor({
+        teamId,
+        baseIntervalMs: intervalMs || IDLE_NUDGE_DEFAULT_INTERVAL_MS,
+        tokenTracker: this.tokenTracker,
+        maxBudgetUsd: config.maxBudgetUsd,
+        budgetThreshold: config.idleNudgeBudgetThreshold ?? IDLE_NUDGE_DEFAULT_BUDGET_THRESHOLD,
+        getNudgeTarget: () => {
+          // Priority: PM > PD > ENG (first running agent)
+          const teamAgents = getAgentsByTeam(teamId);
+          const priority = ["pm", "pd", "eng"];
+
+          for (const code of priority) {
+            for (const a of teamAgents) {
+              const entry = this.agents.get(a.id);
+              if (!entry?.runner.isRunning) continue;
+              const persona = getPersonaById(a.personaId);
+              if (persona?.shortCode === code) {
+                return { agentId: a.id, runner: entry.runner };
+              }
+            }
+          }
+
+          // Fallback: any running agent
+          for (const a of teamAgents) {
+            const entry = this.agents.get(a.id);
+            if (entry?.runner.isRunning) {
+              return { agentId: a.id, runner: entry.runner };
+            }
+          }
+
+          return null;
+        },
+      });
+
+      monitor.on("idle:nudge", (data) => {
+        this.emit("idle:nudge", data);
+      });
+
+      this.idleMonitors.set(teamId, monitor);
+      monitor.start();
+    }
+
     this.emit("team:status", { teamId, status: "running" });
   }
 
@@ -250,9 +323,18 @@ export class LifecycleManager extends EventEmitter {
    * Stop all agents for a team
    */
   stopTeam(teamId: string): void {
+    // Stop idle monitor
+    const monitor = this.idleMonitors.get(teamId);
+    if (monitor) {
+      monitor.stop();
+      this.idleMonitors.delete(teamId);
+    }
+
     const agents = getAgentsByTeam(teamId);
     for (const agent of agents) {
       this.stopAgent(agent.id);
+      updateAgentStatus(agent.id, "stopped");
+      this.emit("agent:status", { agentId: agent.id, status: "stopped" });
     }
 
     updateTeam(teamId, { status: "stopped" });
@@ -293,10 +375,33 @@ export class LifecycleManager extends EventEmitter {
    * Shut down everything
    */
   shutdown(): void {
+    // Stop all idle monitors
+    for (const [, monitor] of this.idleMonitors) {
+      monitor.stop();
+    }
+    this.idleMonitors.clear();
+
     const agentIds = [...this.agents.keys()];
     for (const agentId of agentIds) {
       this.cleanupAgent(agentId);
+      updateAgentStatus(agentId, "stopped");
     }
     this.buses.clear();
+  }
+
+  /**
+   * Reset any agents stuck in active states from a previous server session.
+   * Should be called once on server startup.
+   */
+  resetStaleAgentStatuses(): void {
+    const teams = getAllTeams();
+    for (const team of teams) {
+      const agents = getAgentsByTeam(team.id);
+      for (const agent of agents) {
+        if (agent.status !== "idle" && agent.status !== "stopped") {
+          updateAgentStatus(agent.id, "stopped");
+        }
+      }
+    }
   }
 }

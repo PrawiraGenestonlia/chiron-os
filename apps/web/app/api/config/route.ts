@@ -68,6 +68,26 @@ export async function PUT(request: NextRequest) {
     }
   }
 
+  // Validate idleNudgeIntervalMinutes if present
+  if (body.idleNudgeIntervalMinutes !== undefined && body.idleNudgeIntervalMinutes !== null) {
+    if (typeof body.idleNudgeIntervalMinutes !== "number" || body.idleNudgeIntervalMinutes < 0) {
+      return NextResponse.json(
+        { error: "idleNudgeIntervalMinutes must be a number >= 0" },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Validate idleNudgeBudgetThreshold if present
+  if (body.idleNudgeBudgetThreshold !== undefined && body.idleNudgeBudgetThreshold !== null) {
+    if (typeof body.idleNudgeBudgetThreshold !== "number" || body.idleNudgeBudgetThreshold < 0 || body.idleNudgeBudgetThreshold > 1) {
+      return NextResponse.json(
+        { error: "idleNudgeBudgetThreshold must be a number between 0 and 1" },
+        { status: 400 }
+      );
+    }
+  }
+
   // Write the full config
   const toSave = {
     apiKey: body.apiKey || undefined,
@@ -75,6 +95,8 @@ export async function PUT(request: NextRequest) {
     agentModelOverrides: body.agentModelOverrides ?? {},
     mcpServers: body.mcpServers ?? {},
     maxBudgetUsd: body.maxBudgetUsd || undefined,
+    idleNudgeIntervalMinutes: body.idleNudgeIntervalMinutes ?? undefined,
+    idleNudgeBudgetThreshold: body.idleNudgeBudgetThreshold ?? undefined,
   };
 
   // Remove undefined keys
