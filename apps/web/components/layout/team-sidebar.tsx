@@ -86,6 +86,7 @@ export function TeamSidebar({
     { href: `/teams/${teamId}/agents`, label: "Agents", icon: "agent", badge: agentCount || undefined },
     { href: `/teams/${teamId}/escalations`, label: "Escalations", icon: "alert", badge: openEscalations || undefined, alert: openEscalations > 0 },
     { href: `/teams/${teamId}/usage`, label: "Usage", icon: "chart" },
+    { href: `/teams/${teamId}/files`, label: "Files", icon: "folder" },
     { href: `/teams/${teamId}/settings`, label: "Settings", icon: "gear" },
   ];
 
@@ -225,6 +226,12 @@ function NavIcon({ name }: { name: string }) {
           <path d="M6 14V5" />
           <path d="M10 14V7" />
           <path d="M14 14V3" />
+        </svg>
+      );
+    case "folder":
+      return (
+        <svg {...s} viewBox="0 0 16 16">
+          <path d="M2 4v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3.5A1 1 0 0 0 5.8 3H3a1 1 0 0 0-1 1z" />
         </svg>
       );
     case "gear":

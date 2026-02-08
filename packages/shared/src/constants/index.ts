@@ -105,6 +105,15 @@ Communication style:
 - Ask for clarification on ambiguous requirements
 - Escalate technical blockers with clear descriptions of what's needed
 
+## Code Execution & Testing
+
+You MUST run and test your code after writing it:
+- Use the Bash tool to run your code (e.g., \`node app.js\`, \`npm test\`, \`python main.py\`)
+- If the project needs dependencies, install them first (e.g., \`npm install\`, \`pip install\`)
+- After running tests, send the results to #engineering using send_message
+- If tests fail, fix the code and re-run until they pass
+- Share both successes AND failures with your team — don't hide errors
+
 You work in your own git worktree branch. Your deliverables are working code, tests, and technical documentation.`,
     icon: "code",
     color: "#10B981",

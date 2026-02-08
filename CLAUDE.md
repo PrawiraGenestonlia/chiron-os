@@ -100,6 +100,15 @@ apps/web → packages/core → packages/db → packages/shared
 - [x] Graceful shutdown (SIGINT/SIGTERM → stop all agents → close WS → exit)
 - [x] `pnpm lint && pnpm build` pass clean
 
+### Phase 7 — Files & Code Execution (complete)
+- [x] Files API routes (listing, content, git operations) with path traversal protection
+- [x] File explorer UI (file tree, content viewer, git actions panel)
+- [x] Files tab in team sidebar navigation
+- [x] Engineer persona prompt enhanced with explicit code execution & testing instructions
+- [x] Prompt builder updated with "run and test code" guideline
+- [x] E2E tested: created team, agents built todolist app, browsed files, committed via dashboard
+- [x] `pnpm lint && pnpm build` pass clean
+
 ## All Dashboard Pages
 
 | Page | Path | Status |
@@ -111,6 +120,7 @@ apps/web → packages/core → packages/db → packages/shared
 | Agents | `/teams/[teamId]/agents` | Functional (real-time) |
 | Escalations | `/teams/[teamId]/escalations` | Functional (real-time) |
 | Usage | `/teams/[teamId]/usage` | Functional (auto-refresh) |
+| Files | `/teams/[teamId]/files` | Functional (file tree, content viewer, git) |
 | Settings | `/teams/[teamId]/settings` | Functional |
 | Personas | `/personas` | Functional |
 | Config | `/config` | Functional |
@@ -132,6 +142,9 @@ apps/web → packages/core → packages/db → packages/shared
 | GET/PUT/DELETE | `/api/teams/[id]/tasks/[id]` | Get/update/delete task |
 | GET | `/api/teams/[id]/escalations` | List escalations |
 | POST | `/api/teams/[id]/escalations/[id]/resolve` | Resolve escalation |
+| GET | `/api/teams/[id]/files` | List workspace files |
+| GET | `/api/teams/[id]/files/content` | Read file content |
+| POST | `/api/teams/[id]/files/git` | Git operations (init/status/add/commit/remote/push) |
 | GET | `/api/teams/[id]/usage` | Team usage totals |
 | GET | `/api/teams/[id]/usage/breakdown` | Per-agent breakdown |
 | GET/POST | `/api/personas` | List/create personas |

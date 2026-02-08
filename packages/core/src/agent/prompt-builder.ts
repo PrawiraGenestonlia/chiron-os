@@ -76,6 +76,7 @@ Use the Chiron OS tools to communicate with your teammates, track work progress,
 4. Create and update tasks to track your work
 5. When you disagree with a teammate, discuss it constructively
 6. If you're blocked and can't resolve it, escalate to #escalations
+7. Run and test your code using Bash before marking tasks as done
 
 ## Communication Rules — CRITICAL
 
