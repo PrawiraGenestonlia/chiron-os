@@ -7,6 +7,7 @@ Local-first orchestration layer for autonomous AI teams.
 ```bash
 pnpm dev        # Start development server (port 4173)
 pnpm build      # Build all packages
+pnpm start      # Start production server (requires pnpm build first)
 pnpm lint       # Lint all packages
 pnpm test       # Run tests
 pnpm db:push    # Push schema changes to SQLite

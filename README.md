@@ -139,6 +139,7 @@ chiron-os/
 ```bash
 pnpm dev        # Start development server (port 4173)
 pnpm build      # Build all packages
+pnpm start      # Start production server (requires pnpm build first)
 pnpm db:push    # Push schema changes to SQLite
 pnpm db:seed    # Seed default personas (PM, PD, ENG)
 ```
