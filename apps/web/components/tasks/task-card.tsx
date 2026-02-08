@@ -33,9 +33,11 @@ const NEXT_ACTION: Record<string, { label: string; target: TaskStatus }[]> = {
 interface TaskCardProps {
   task: Task;
   onStatusChange?: (taskId: string, status: string) => void;
+  onClick?: () => void;
+  agentName?: string;
 }
 
-export function TaskCard({ task, onStatusChange }: TaskCardProps) {
+export function TaskCard({ task, onStatusChange, onClick, agentName }: TaskCardProps) {
   const [showMore, setShowMore] = useState(false);
   const priority = task.priority as TaskPriority;
   const priorityColor = PRIORITY_COLORS[priority] ?? "#6b7280";
@@ -51,7 +53,9 @@ export function TaskCard({ task, onStatusChange }: TaskCardProps) {
       style={{
         backgroundColor: "var(--background)",
         borderColor: "var(--border)",
+        cursor: onClick ? "pointer" : undefined,
       }}
+      onClick={onClick}
     >
       {/* Row 1: priority badge + title */}
       <div className="flex items-start gap-1.5">
@@ -88,11 +92,11 @@ export function TaskCard({ task, onStatusChange }: TaskCardProps) {
         <div className="min-w-0">
           {task.assigneeId && (
             <span
-              className="text-[10px] font-mono truncate block max-w-[72px]"
+              className="text-[10px] truncate block max-w-[80px]"
               style={{ color: "var(--muted-foreground)" }}
-              title={task.assigneeId}
+              title={agentName ?? task.assigneeId}
             >
-              {task.assigneeId.slice(0, 8)}
+              {agentName ?? task.assigneeId.slice(0, 8)}
             </span>
           )}
         </div>
@@ -102,9 +106,10 @@ export function TaskCard({ task, onStatusChange }: TaskCardProps) {
           <div className="flex gap-1 shrink-0">
             {actions.length === 1 ? (
               <button
-                onClick={() =>
-                  onStatusChange(task.id, actions[0].target)
-                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStatusChange(task.id, actions[0].target);
+                }}
                 className="text-[10px] leading-none px-1.5 py-0.5 rounded transition-colors opacity-60 group-hover:opacity-100"
                 style={{
                   backgroundColor: "var(--muted)",
@@ -117,9 +122,10 @@ export function TaskCard({ task, onStatusChange }: TaskCardProps) {
               <>
                 {/* Show primary action always, secondary on hover/tap */}
                 <button
-                  onClick={() =>
-                    onStatusChange(task.id, actions[0].target)
-                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStatusChange(task.id, actions[0].target);
+                  }}
                   className="text-[10px] leading-none px-1.5 py-0.5 rounded transition-colors opacity-60 group-hover:opacity-100"
                   style={{
                     backgroundColor: "var(--muted)",
@@ -130,7 +136,7 @@ export function TaskCard({ task, onStatusChange }: TaskCardProps) {
                 </button>
                 {!showMore ? (
                   <button
-                    onClick={() => setShowMore(true)}
+                    onClick={(e) => { e.stopPropagation(); setShowMore(true); }}
                     className="text-[10px] leading-none px-1 py-0.5 rounded transition-colors opacity-0 group-hover:opacity-60"
                     style={{
                       color: "var(--muted-foreground)",
@@ -143,9 +149,10 @@ export function TaskCard({ task, onStatusChange }: TaskCardProps) {
                   actions.slice(1).map((a) => (
                     <button
                       key={a.target}
-                      onClick={() =>
-                        onStatusChange(task.id, a.target)
-                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onStatusChange(task.id, a.target);
+                      }}
                       className="text-[10px] leading-none px-1.5 py-0.5 rounded transition-colors"
                       style={{
                         backgroundColor: "var(--muted)",

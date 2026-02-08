@@ -44,9 +44,12 @@ export function MessageFeed({ messages, loading }: MessageFeedProps) {
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex flex-col items-center justify-center gap-1">
         <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-          No messages yet. Start the conversation!
+          No messages yet
+        </span>
+        <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+          Start the team to begin the conversation
         </span>
       </div>
     );
@@ -55,11 +58,34 @@ export function MessageFeed({ messages, loading }: MessageFeedProps) {
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto">
       <div className="py-2">
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
-        ))}
+        {messages.map((msg, idx) => {
+          // Group consecutive messages from the same author (within 2 minutes)
+          const prev = idx > 0 ? messages[idx - 1] : null;
+          const isGrouped =
+            prev !== null &&
+            prev.authorId === msg.authorId &&
+            prev.authorRole === msg.authorRole &&
+            msg.authorRole !== "system" &&
+            timeDiffSeconds(prev.createdAt, msg.createdAt) < 120;
+
+          return (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              isGrouped={isGrouped}
+            />
+          );
+        })}
         <div ref={bottomRef} />
       </div>
     </div>
   );
+}
+
+function timeDiffSeconds(a: string, b: string): number {
+  try {
+    return Math.abs(new Date(b).getTime() - new Date(a).getTime()) / 1000;
+  } catch {
+    return Infinity;
+  }
 }

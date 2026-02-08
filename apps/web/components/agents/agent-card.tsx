@@ -2,36 +2,18 @@
 
 import { useRef, useEffect } from "react";
 import type { Agent, AgentStatus } from "@chiron-os/shared";
-
-const STATUS_COLORS: Record<AgentStatus, string> = {
-  idle: "#6b7280",
-  running: "#22c55e",
-  thinking: "#3b82f6",
-  tool_use: "#a855f7",
-  paused: "#eab308",
-  stopped: "#6b7280",
-  error: "#ef4444",
-  restarting: "#f97316",
-};
-
-const STATUS_LABELS: Record<AgentStatus, string> = {
-  idle: "Idle",
-  running: "Running",
-  thinking: "Thinking",
-  tool_use: "Using Tool",
-  paused: "Paused",
-  stopped: "Stopped",
-  error: "Error",
-  restarting: "Restarting",
-};
+import { HUMAN_STATUS_LABELS, STATUS_COLORS } from "@/lib/status-labels";
 
 interface AgentCardProps {
   agent: Agent & { personaName?: string; personaShortCode?: string; personaColor?: string };
   onRestart?: (agentId: string) => void;
+  onRemove?: (agentId: string) => void;
+  onClick?: () => void;
   streamText?: string;
+  teamStopped?: boolean;
 }
 
-export function AgentCard({ agent, onRestart, streamText }: AgentCardProps) {
+export function AgentCard({ agent, onRestart, onRemove, onClick, streamText, teamStopped }: AgentCardProps) {
   const status = agent.status as AgentStatus;
   const color = STATUS_COLORS[status] ?? "#6b7280";
   const isActive = status === "running" || status === "thinking" || status === "tool_use";
@@ -45,8 +27,13 @@ export function AgentCard({ agent, onRestart, streamText }: AgentCardProps) {
 
   return (
     <div
-      className="rounded-lg border p-4"
-      style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
+      className="rounded-lg border p-4 transition-colors"
+      style={{
+        backgroundColor: "var(--card)",
+        borderColor: "var(--border)",
+        cursor: onClick ? "pointer" : undefined,
+      }}
+      onClick={onClick}
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
@@ -73,8 +60,8 @@ export function AgentCard({ agent, onRestart, streamText }: AgentCardProps) {
               boxShadow: isActive ? `0 0 6px ${color}` : "none",
             }}
           />
-          <span className="text-xs font-mono" style={{ color }}>
-            {STATUS_LABELS[status] ?? status}
+          <span className="text-xs" style={{ color }}>
+            {HUMAN_STATUS_LABELS[status] ?? status}
           </span>
         </div>
       </div>
@@ -86,10 +73,6 @@ export function AgentCard({ agent, onRestart, streamText }: AgentCardProps) {
             <span>{agent.personaName}</span>
           </div>
         )}
-        <div className="flex justify-between">
-          <span>ID</span>
-          <span className="font-mono">{agent.id.slice(0, 8)}</span>
-        </div>
         <div className="flex justify-between">
           <span>Model</span>
           <span className="font-mono">{agent.modelOverride ?? "default"}</span>
@@ -110,19 +93,35 @@ export function AgentCard({ agent, onRestart, streamText }: AgentCardProps) {
         </pre>
       )}
 
-      {onRestart && (
-        <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
-          <button
-            onClick={() => onRestart(agent.id)}
-            disabled={status === "restarting"}
-            className="text-xs px-3 py-1 rounded transition-colors disabled:opacity-50"
-            style={{
-              backgroundColor: "var(--muted)",
-              color: "var(--muted-foreground)",
-            }}
-          >
-            Restart
-          </button>
+      {(onRestart || onRemove) && (
+        <div className="mt-3 pt-3 flex gap-2" style={{ borderTop: "1px solid var(--border)" }}>
+          {onRestart && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRestart(agent.id); }}
+              disabled={status === "restarting"}
+              className="text-xs px-3 py-1 rounded transition-colors disabled:opacity-50"
+              style={{
+                backgroundColor: "var(--muted)",
+                color: "var(--muted-foreground)",
+              }}
+            >
+              Restart
+            </button>
+          )}
+          {onRemove && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemove(agent.id); }}
+              disabled={!teamStopped}
+              className="text-xs px-3 py-1 rounded transition-colors disabled:opacity-40"
+              style={{
+                backgroundColor: "rgba(239,68,68,0.1)",
+                color: "#f87171",
+              }}
+              title={teamStopped ? undefined : "Stop the team first"}
+            >
+              Remove
+            </button>
+          )}
         </div>
       )}
     </div>

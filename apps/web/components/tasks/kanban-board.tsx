@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import type { Task, TaskStatus, WSServerEvent } from "@chiron-os/shared";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { TaskCard } from "./task-card";
+import { TaskDetailDialog } from "./task-detail-dialog";
+import { SearchInput } from "@/components/ui/search-input";
 
 const COLUMNS: { status: TaskStatus; label: string; color: string }[] = [
   { status: "backlog", label: "Backlog", color: "#6b7280" },
@@ -17,12 +19,15 @@ const COLUMNS: { status: TaskStatus; label: string; color: string }[] = [
 interface KanbanBoardProps {
   teamId: string;
   initialTasks: Task[];
+  agentMap?: Record<string, string>;
 }
 
-export function KanbanBoard({ teamId, initialTasks }: KanbanBoardProps) {
+export function KanbanBoard({ teamId, initialTasks, agentMap = {} }: KanbanBoardProps) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [search, setSearch] = useState("");
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const handleWsMessage = useCallback((event: WSServerEvent) => {
     if (event.type === "task:created") {
@@ -40,11 +45,18 @@ export function KanbanBoard({ teamId, initialTasks }: KanbanBoardProps) {
 
   const { connected } = useWebSocket({ teamId, onMessage: handleWsMessage });
 
-  const handleStatusChange = async (taskId: string, status: string) => {
-    // Save previous state for rollback
-    const previousTasks = tasks;
+  const filteredTasks = useMemo(() => {
+    if (!search.trim()) return tasks;
+    const q = search.toLowerCase();
+    return tasks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        (t.description ?? "").toLowerCase().includes(q)
+    );
+  }, [tasks, search]);
 
-    // Optimistic update
+  const handleStatusChange = async (taskId: string, status: string) => {
+    const previousTasks = tasks;
     setTasks((prev) =>
       prev.map((t) =>
         t.id === taskId ? { ...t, status: status as TaskStatus } : t
@@ -91,17 +103,34 @@ export function KanbanBoard({ teamId, initialTasks }: KanbanBoardProps) {
     setCreating(false);
   };
 
+  const handleTaskUpdate = (updated: Task) => {
+    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  };
+
+  const handleTaskDelete = (taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+  };
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-block w-2 h-2 rounded-full"
-            style={{ backgroundColor: connected ? "#22c55e" : "#ef4444" }}
-          />
-          <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            {tasks.length} tasks
-          </span>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className="inline-block w-2 h-2 rounded-full"
+              style={{ backgroundColor: connected ? "#22c55e" : "#ef4444" }}
+            />
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              {tasks.length} tasks
+            </span>
+          </div>
+          <div className="max-w-[200px]">
+            <SearchInput
+              placeholder="Filter tasks..."
+              value={search}
+              onChange={setSearch}
+            />
+          </div>
         </div>
 
         {creating ? (
@@ -137,39 +166,63 @@ export function KanbanBoard({ teamId, initialTasks }: KanbanBoardProps) {
         )}
       </div>
 
-      <div className="flex gap-3 min-h-[400px] overflow-x-auto pb-2">
-        {COLUMNS.map((col) => {
-          const columnTasks = tasks.filter((t) => t.status === col.status);
-          return (
-            <div key={col.status} className="shrink-0 w-52">
-              <div className="flex items-center gap-2 mb-2 px-1">
-                <span
-                  className="inline-block w-2 h-2 rounded-full"
-                  style={{ backgroundColor: col.color }}
-                />
-                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
-                  {col.label}
-                </span>
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                  {columnTasks.length}
-                </span>
-              </div>
-              <div
-                className="space-y-1.5 min-h-[200px] rounded-lg p-1.5"
-                style={{ backgroundColor: "var(--card)" }}
-              >
-                {columnTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onStatusChange={handleStatusChange}
+      {tasks.length === 0 ? (
+        <div
+          className="text-center py-12 rounded-lg"
+          style={{ backgroundColor: "var(--card)", color: "var(--muted-foreground)" }}
+        >
+          <p className="text-sm">No tasks yet</p>
+          <p className="text-xs mt-1">Start the team or create one manually.</p>
+        </div>
+      ) : (
+        <div className="flex gap-3 min-h-[400px] overflow-x-auto pb-2">
+          {COLUMNS.map((col) => {
+            const columnTasks = filteredTasks.filter((t) => t.status === col.status);
+            return (
+              <div key={col.status} className="shrink-0 w-52">
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <span
+                    className="inline-block w-2 h-2 rounded-full"
+                    style={{ backgroundColor: col.color }}
                   />
-                ))}
+                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
+                    {col.label}
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    {columnTasks.length}
+                  </span>
+                </div>
+                <div
+                  className="space-y-1.5 min-h-[200px] rounded-lg p-1.5"
+                  style={{ backgroundColor: "var(--card)" }}
+                >
+                  {columnTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onStatusChange={handleStatusChange}
+                      onClick={() => setSelectedTask(task)}
+                      agentName={task.assigneeId ? agentMap[task.assigneeId] : undefined}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      {selectedTask && (
+        <TaskDetailDialog
+          open={!!selectedTask}
+          onOpenChange={(v) => { if (!v) setSelectedTask(null); }}
+          task={selectedTask}
+          teamId={teamId}
+          agentMap={agentMap}
+          onUpdate={handleTaskUpdate}
+          onDelete={handleTaskDelete}
+        />
+      )}
     </div>
   );
 }

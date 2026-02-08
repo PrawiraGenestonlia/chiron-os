@@ -1,4 +1,4 @@
-import { eq, desc, and, isNull, lt } from "drizzle-orm";
+import { eq, desc, and, isNull, lt, like } from "drizzle-orm";
 import { db } from "../client.js";
 import { messages, channels } from "../schema/index.js";
 import { generateId, nowISO } from "@chiron-os/shared";
@@ -56,6 +56,41 @@ export function getRecentMessagesByTeam(teamId: string, limit = 10) {
     .from(messages)
     .innerJoin(channels, eq(messages.channelId, channels.id))
     .where(eq(channels.teamId, teamId))
+    .orderBy(desc(messages.createdAt))
+    .limit(limit)
+    .all()
+    .reverse();
+}
+
+export function searchMessages(
+  teamId: string,
+  query: string,
+  channelId?: string,
+  limit = 50
+) {
+  const conditions = [
+    eq(channels.teamId, teamId),
+    like(messages.content, `%${query}%`),
+  ];
+  if (channelId) {
+    conditions.push(eq(messages.channelId, channelId));
+  }
+  return db
+    .select({
+      id: messages.id,
+      channelId: messages.channelId,
+      authorId: messages.authorId,
+      authorRole: messages.authorRole,
+      authorName: messages.authorName,
+      threadId: messages.threadId,
+      content: messages.content,
+      messageType: messages.messageType,
+      metadata: messages.metadata,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .innerJoin(channels, eq(messages.channelId, channels.id))
+    .where(and(...conditions))
     .orderBy(desc(messages.createdAt))
     .limit(limit)
     .all()

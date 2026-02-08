@@ -4,23 +4,32 @@ import { useState, useCallback, useRef } from "react";
 import type { Agent, AgentStatus, WSServerEvent } from "@chiron-os/shared";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { AgentCard } from "./agent-card";
+import { AddAgentDialog } from "./add-agent-dialog";
+import { AgentDetailDialog } from "./agent-detail-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/toast";
+import { getIdleBadgeConfig } from "@/lib/status-labels";
 
 type EnrichedAgent = Agent & { personaName?: string; personaShortCode?: string; personaColor?: string };
 
 interface AgentListProps {
   teamId: string;
+  teamStatus: string;
   initialAgents: EnrichedAgent[];
 }
 
 type IdleStatus = "active" | "backed_off" | "hibernating" | null;
 
-export function AgentList({ teamId, initialAgents }: AgentListProps) {
+export function AgentList({ teamId, teamStatus, initialAgents }: AgentListProps) {
   const [agents, setAgents] = useState<EnrichedAgent[]>(initialAgents);
   const [streamTexts, setStreamTexts] = useState<Record<string, string>>({});
   const buffersRef = useRef<Record<string, string>>({});
   const frameRef = useRef<number | null>(null);
   const [idleStatus, setIdleStatus] = useState<IdleStatus>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<EnrichedAgent | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
+  const [currentStatus, setCurrentStatus] = useState(teamStatus);
 
   const handleWsMessage = useCallback((event: WSServerEvent) => {
     if (event.type === "agent:status") {
@@ -47,9 +56,14 @@ export function AgentList({ teamId, initialAgents }: AgentListProps) {
     if (event.type === "idle:nudge") {
       setIdleStatus(event.data.status);
     }
+    if (event.type === "team:status") {
+      setCurrentStatus(event.data.status);
+    }
   }, []);
 
   const { connected } = useWebSocket({ teamId, onMessage: handleWsMessage });
+
+  const teamStopped = currentStatus !== "running";
 
   const handleRestart = async (agentId: string) => {
     try {
@@ -67,25 +81,69 @@ export function AgentList({ teamId, initialAgents }: AgentListProps) {
     }
   };
 
+  const handleRemove = async (agentId: string) => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/agents/${agentId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setAgents((prev) => prev.filter((a) => a.id !== agentId));
+        toast("Agent removed", "success");
+      } else {
+        const data = await res.json();
+        toast(data.error ?? "Failed to remove agent", "error");
+      }
+    } catch {
+      toast("Failed to remove agent", "error");
+    }
+  };
+
+  const refreshAgents = async () => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/agents`);
+      if (res.ok) {
+        const data = await res.json();
+        setAgents(data as EnrichedAgent[]);
+      }
+    } catch {
+      // silently fail
+    }
+  };
+
+  const agentToRemove = agents.find((a) => a.id === removeTarget);
+
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-block w-2 h-2 rounded-full"
-            style={{ backgroundColor: connected ? "#22c55e" : "#ef4444" }}
-          />
-          <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            {connected ? "Connected" : "Disconnected"}
-          </span>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-block w-2 h-2 rounded-full"
+              style={{ backgroundColor: connected ? "#22c55e" : "#ef4444" }}
+            />
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              {connected ? "Connected" : "Disconnected"}
+            </span>
+          </div>
+          {idleStatus && <IdleStatusBadge status={idleStatus} />}
         </div>
-        {idleStatus && <IdleStatusBadge status={idleStatus} />}
+        <button
+          onClick={() => setShowAddDialog(true)}
+          className="text-xs px-3 py-1.5 rounded transition-colors"
+          style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }}
+        >
+          + Add Agent
+        </button>
       </div>
 
       {agents.length === 0 ? (
-        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-          No agents in this team. Add agents from the team settings.
-        </p>
+        <div
+          className="text-center py-12 rounded-lg"
+          style={{ backgroundColor: "var(--card)", color: "var(--muted-foreground)" }}
+        >
+          <p className="text-sm">No agents yet</p>
+          <p className="text-xs mt-1">Click &quot;Add Agent&quot; to assign roles to this team.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {agents.map((agent) => (
@@ -93,21 +151,54 @@ export function AgentList({ teamId, initialAgents }: AgentListProps) {
               key={agent.id}
               agent={agent}
               onRestart={handleRestart}
+              onRemove={(id) => setRemoveTarget(id)}
+              onClick={() => setSelectedAgent(agent)}
               streamText={streamTexts[agent.id]}
+              teamStopped={teamStopped}
             />
           ))}
         </div>
+      )}
+
+      <AddAgentDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        teamId={teamId}
+        onAgentAdded={refreshAgents}
+      />
+
+      {selectedAgent && (
+        <AgentDetailDialog
+          open={!!selectedAgent}
+          onOpenChange={(v) => { if (!v) setSelectedAgent(null); }}
+          agent={selectedAgent}
+          streamText={streamTexts[selectedAgent.id]}
+          onRestart={handleRestart}
+          onRemove={(id) => { setSelectedAgent(null); setRemoveTarget(id); }}
+          teamStopped={teamStopped}
+        />
+      )}
+
+      {agentToRemove && (
+        <ConfirmDialog
+          open={!!removeTarget}
+          onOpenChange={(v) => { if (!v) setRemoveTarget(null); }}
+          title="Remove Agent"
+          description={`Remove "${agentToRemove.name}" from this team? This cannot be undone.`}
+          confirmLabel="Remove"
+          variant="danger"
+          onConfirm={() => {
+            handleRemove(removeTarget!);
+            setRemoveTarget(null);
+          }}
+        />
       )}
     </div>
   );
 }
 
 function IdleStatusBadge({ status }: { status: "active" | "backed_off" | "hibernating" }) {
-  const config = {
-    active: { label: "Idle: Active", color: "#22c55e", bg: "rgba(34,197,94,0.1)" },
-    backed_off: { label: "Idle: Backed Off", color: "#eab308", bg: "rgba(234,179,8,0.1)" },
-    hibernating: { label: "Idle: Hibernating", color: "#6b7280", bg: "rgba(107,114,128,0.1)" },
-  }[status];
+  const config = getIdleBadgeConfig(status);
 
   return (
     <span

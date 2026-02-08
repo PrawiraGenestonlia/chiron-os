@@ -79,15 +79,27 @@ export function TeamSidebar({
     }
   }
 
-  const navItems = [
-    { href: `/teams/${teamId}`, label: "Overview", icon: "grid", exact: true },
-    { href: `/teams/${teamId}/messages`, label: "Messages", icon: "msg" },
-    { href: `/teams/${teamId}/tasks`, label: "Tasks", icon: "task", badge: taskCount || undefined },
-    { href: `/teams/${teamId}/agents`, label: "Agents", icon: "agent", badge: agentCount || undefined },
-    { href: `/teams/${teamId}/escalations`, label: "Escalations", icon: "alert", badge: openEscalations || undefined, alert: openEscalations > 0 },
-    { href: `/teams/${teamId}/usage`, label: "Usage", icon: "chart" },
-    { href: `/teams/${teamId}/files`, label: "Files", icon: "folder" },
-    { href: `/teams/${teamId}/settings`, label: "Settings", icon: "gear" },
+  const navGroups: { items: { href: string; label: string; icon: string; exact?: boolean; badge?: number; alert?: boolean }[] }[] = [
+    {
+      items: [
+        { href: `/teams/${teamId}`, label: "Overview", icon: "grid", exact: true },
+        { href: `/teams/${teamId}/messages`, label: "Messages", icon: "msg" },
+        { href: `/teams/${teamId}/tasks`, label: "Tasks", icon: "task", badge: taskCount || undefined },
+        { href: `/teams/${teamId}/agents`, label: "Agents", icon: "agent", badge: agentCount || undefined },
+      ],
+    },
+    {
+      items: [
+        { href: `/teams/${teamId}/escalations`, label: "Escalations", icon: "alert", badge: openEscalations || undefined, alert: openEscalations > 0 },
+        { href: `/teams/${teamId}/usage`, label: "Usage", icon: "chart" },
+        { href: `/teams/${teamId}/files`, label: "Files", icon: "folder" },
+      ],
+    },
+    {
+      items: [
+        { href: `/teams/${teamId}/settings`, label: "Settings", icon: "gear" },
+      ],
+    },
   ];
 
   return (
@@ -143,37 +155,49 @@ export function TeamSidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-2 space-y-0.5">
-        {navItems.map((item) => {
-          const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center justify-between px-3 py-2 rounded text-xs transition-colors hover:bg-white/5"
-              style={{
-                backgroundColor: active ? "var(--muted)" : "transparent",
-                color: active ? "var(--foreground)" : "var(--muted-foreground)",
-              }}
-            >
-              <span className="flex items-center gap-2">
-                <NavIcon name={item.icon} />
-                {item.label}
-              </span>
-              {item.badge !== undefined && (
-                <span
-                  className="min-w-[18px] text-center px-1 py-0.5 rounded text-[10px] font-medium"
-                  style={{
-                    backgroundColor: item.alert ? "rgba(239,68,68,0.2)" : "var(--muted)",
-                    color: item.alert ? "#f87171" : "var(--muted-foreground)",
-                  }}
-                >
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 p-2">
+        {navGroups.map((group, gi) => (
+          <div key={gi}>
+            {gi > 0 && (
+              <div
+                className="mx-3 my-1.5 border-t"
+                style={{ borderColor: "var(--border)" }}
+              />
+            )}
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="flex items-center justify-between px-3 py-2 rounded text-xs transition-colors hover:bg-white/5"
+                    style={{
+                      backgroundColor: active ? "var(--muted)" : "transparent",
+                      color: active ? "var(--foreground)" : "var(--muted-foreground)",
+                    }}
+                  >
+                    <span className="flex items-center gap-2">
+                      <NavIcon name={item.icon} />
+                      {item.label}
+                    </span>
+                    {item.badge !== undefined && (
+                      <span
+                        className="min-w-[18px] text-center px-1 py-0.5 rounded text-[10px] font-medium"
+                        style={{
+                          backgroundColor: item.alert ? "rgba(239,68,68,0.2)" : "var(--muted)",
+                          color: item.alert ? "#f87171" : "var(--muted-foreground)",
+                        }}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
     </aside>
   );

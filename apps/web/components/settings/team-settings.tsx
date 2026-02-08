@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "@/components/ui/toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Learning {
   id: string;
@@ -25,6 +26,8 @@ export function TeamSettings({ teamId, initialName, initialGoal, initialWorkspac
   const [workspacePath, setWorkspacePath] = useState(initialWorkspacePath);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -114,32 +117,6 @@ export function TeamSettings({ teamId, initialName, initialGoal, initialWorkspac
         </div>
       </div>
 
-      {/* Team Controls */}
-      <div
-        className="rounded-lg border p-5"
-        style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
-      >
-        <h2 className="font-semibold mb-4" style={{ color: "var(--card-foreground)" }}>
-          Team Controls
-        </h2>
-        <div className="flex gap-2">
-          <ActionButton
-            label="Start Team"
-            color="#22c55e"
-            onClick={async () => {
-              await fetch(`/api/teams/${teamId}/start`, { method: "POST" });
-            }}
-          />
-          <ActionButton
-            label="Stop Team"
-            color="#ef4444"
-            onClick={async () => {
-              await fetch(`/api/teams/${teamId}/stop`, { method: "POST" });
-            }}
-          />
-        </div>
-      </div>
-
       {/* Team Learnings */}
       <LearningsSection teamId={teamId} />
 
@@ -155,20 +132,33 @@ export function TeamSettings({ teamId, initialName, initialGoal, initialWorkspac
           Destructive actions that cannot be undone.
         </p>
         <button
-          onClick={async () => {
-            if (!confirm("Are you sure you want to delete this team? This cannot be undone.")) return;
-            try {
-              await fetch(`/api/teams/${teamId}`, { method: "DELETE" });
-              window.location.href = "/";
-            } catch (err) {
-              console.error("Failed to delete team:", err);
-            }
-          }}
+          onClick={() => setShowDeleteConfirm(true)}
           className="text-xs px-3 py-1.5 rounded border transition-colors"
           style={{ borderColor: "#ef4444", color: "#ef4444" }}
         >
           Delete Team
         </button>
+        <ConfirmDialog
+          open={showDeleteConfirm}
+          onOpenChange={setShowDeleteConfirm}
+          title="Delete Team"
+          description="Are you sure you want to delete this team? This cannot be undone."
+          confirmLabel="Delete"
+          variant="danger"
+          loading={deleting}
+          onConfirm={async () => {
+            setDeleting(true);
+            try {
+              await fetch(`/api/teams/${teamId}`, { method: "DELETE" });
+              window.location.href = "/";
+            } catch (err) {
+              console.error("Failed to delete team:", err);
+              toast("Failed to delete team", "error");
+              setDeleting(false);
+              setShowDeleteConfirm(false);
+            }
+          }}
+        />
       </div>
     </div>
   );
@@ -276,24 +266,3 @@ function LearningsSection({ teamId }: { teamId: string }) {
   );
 }
 
-function ActionButton({ label, color, onClick }: { label: string; color: string; onClick: () => void }) {
-  const [loading, setLoading] = useState(false);
-
-  return (
-    <button
-      disabled={loading}
-      onClick={async () => {
-        setLoading(true);
-        try {
-          await onClick();
-        } finally {
-          setLoading(false);
-        }
-      }}
-      className="text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50"
-      style={{ backgroundColor: `${color}20`, color }}
-    >
-      {loading ? "..." : label}
-    </button>
-  );
-}

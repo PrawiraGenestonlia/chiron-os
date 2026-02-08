@@ -43,6 +43,7 @@ export default async function TeamPage({ params }: PageProps) {
       teamId={teamId}
       teamName={team.name}
       teamGoal={team.goal}
+      teamStatus={team.status}
       initialAgents={enrichedAgents}
       initialTasks={tasks}
       initialEscalations={escalations}

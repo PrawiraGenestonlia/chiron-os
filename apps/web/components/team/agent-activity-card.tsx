@@ -1,29 +1,8 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { AgentStatus } from "@chiron-os/shared";
-
-const STATUS_COLORS: Record<AgentStatus, string> = {
-  idle: "#6b7280",
-  running: "#22c55e",
-  thinking: "#3b82f6",
-  tool_use: "#a855f7",
-  paused: "#eab308",
-  stopped: "#6b7280",
-  error: "#ef4444",
-  restarting: "#f97316",
-};
-
-const STATUS_LABELS: Record<AgentStatus, string> = {
-  idle: "Idle",
-  running: "Running",
-  thinking: "Thinking",
-  tool_use: "Using Tool",
-  paused: "Paused",
-  stopped: "Stopped",
-  error: "Error",
-  restarting: "Restarting",
-};
+import { HUMAN_STATUS_LABELS, STATUS_COLORS } from "@/lib/status-labels";
 
 interface AgentActivityCardProps {
   agentId: string;
@@ -31,9 +10,11 @@ interface AgentActivityCardProps {
   personaShortCode?: string;
   status: AgentStatus;
   streamBuffer: string;
+  compact?: boolean;
 }
 
-export function AgentActivityCard({ agentName, personaShortCode, status, streamBuffer }: AgentActivityCardProps) {
+export function AgentActivityCard({ agentName, personaShortCode, status, streamBuffer, compact }: AgentActivityCardProps) {
+  const [expanded, setExpanded] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
   const color = STATUS_COLORS[status] ?? "#6b7280";
   const isActive = status === "running" || status === "thinking" || status === "tool_use";
@@ -44,6 +25,41 @@ export function AgentActivityCard({ agentName, personaShortCode, status, streamB
       preRef.current.scrollTop = preRef.current.scrollHeight;
     }
   }, [streamBuffer]);
+
+  if (compact && !expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-colors"
+        style={{
+          backgroundColor: "var(--card)",
+          borderColor: isActive ? `${color}40` : "var(--border)",
+        }}
+      >
+        {personaShortCode && (
+          <span
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0"
+            style={{ backgroundColor: "var(--muted)", color: "var(--muted-foreground)" }}
+          >
+            {personaShortCode}
+          </span>
+        )}
+        <span className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
+          {agentName}
+        </span>
+        <span className="text-xs ml-auto shrink-0 flex items-center gap-1.5">
+          <span
+            className="w-2 h-2 rounded-full"
+            style={{
+              backgroundColor: color,
+              boxShadow: isActive ? `0 0 6px ${color}` : "none",
+            }}
+          />
+          <span style={{ color }}>{HUMAN_STATUS_LABELS[status] ?? status}</span>
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div
@@ -78,8 +94,17 @@ export function AgentActivityCard({ agentName, personaShortCode, status, streamB
             }}
           />
           <span className="text-[10px] font-mono" style={{ color }}>
-            {STATUS_LABELS[status] ?? status}
+            {HUMAN_STATUS_LABELS[status] ?? status}
           </span>
+          {compact && (
+            <button
+              onClick={() => setExpanded(false)}
+              className="text-[10px] ml-1"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Collapse
+            </button>
+          )}
         </div>
       </div>
 

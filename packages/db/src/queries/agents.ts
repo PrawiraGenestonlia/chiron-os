@@ -39,6 +39,10 @@ export function updateAgentStatus(id: string, status: AgentStatus, sessionId?: s
   return getAgentById(id);
 }
 
+export function deleteAgent(id: string) {
+  db.delete(agents).where(eq(agents.id, id)).run();
+}
+
 export function getRunningAgentsByTeam(teamId: string) {
   return db
     .select()
