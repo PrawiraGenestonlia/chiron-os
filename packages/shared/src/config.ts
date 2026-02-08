@@ -2,10 +2,23 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 
-export interface McpServerConfig {
+export interface McpStdioServerConfig {
+  type?: "stdio";
   command: string;
   args?: string[];
   env?: Record<string, string>;
+}
+
+export interface McpHttpServerConfig {
+  type?: "http" | "sse";
+  url: string;
+  headers?: Record<string, string>;
+}
+
+export type McpServerConfig = McpStdioServerConfig | McpHttpServerConfig;
+
+export function isHttpMcpServer(s: McpServerConfig): s is McpHttpServerConfig {
+  return "url" in s;
 }
 
 export interface ChironConfig {

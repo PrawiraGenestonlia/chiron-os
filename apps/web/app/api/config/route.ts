@@ -18,19 +18,40 @@ export async function PUT(request: NextRequest) {
   const body = await request.json();
   const configPath = findConfigPath(process.cwd());
 
-  // Validate mcpServers — only allow known fields
+  // Validate mcpServers — stdio needs command, HTTP needs url
   if (body.mcpServers && typeof body.mcpServers === "object") {
     for (const [name, server] of Object.entries(body.mcpServers)) {
       const s = server as Record<string, unknown>;
-      if (!s.command || typeof s.command !== "string") {
+      const hasCommand = s.command && typeof s.command === "string";
+      const hasUrl = s.url && typeof s.url === "string";
+
+      if (!hasCommand && !hasUrl) {
         return NextResponse.json(
-          { error: `mcpServers.${name}: command must be a non-empty string` },
+          { error: `mcpServers.${name}: must have either "command" (stdio) or "url" (HTTP)` },
           { status: 400 }
         );
       }
-      if (s.args && !Array.isArray(s.args)) {
+      if (hasCommand && hasUrl) {
+        return NextResponse.json(
+          { error: `mcpServers.${name}: cannot have both "command" and "url"` },
+          { status: 400 }
+        );
+      }
+      if (hasCommand && s.args && !Array.isArray(s.args)) {
         return NextResponse.json(
           { error: `mcpServers.${name}: args must be an array` },
+          { status: 400 }
+        );
+      }
+      if (hasUrl && s.headers && typeof s.headers !== "object") {
+        return NextResponse.json(
+          { error: `mcpServers.${name}: headers must be an object` },
+          { status: 400 }
+        );
+      }
+      if (s.type && !["stdio", "http", "sse"].includes(s.type as string)) {
+        return NextResponse.json(
+          { error: `mcpServers.${name}: type must be "stdio", "http", or "sse"` },
           { status: 400 }
         );
       }

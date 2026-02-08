@@ -11,7 +11,8 @@ import { TokenTracker } from "../tracking/token-tracker.js";
 import { EscalationManager } from "../escalation/escalation-manager.js";
 import { updateAgentStatus } from "@chiron-os/db";
 import type { AgentStatus } from "@chiron-os/shared";
-import { DEFAULT_MODEL, resolveApiKey, loadConfig } from "@chiron-os/shared";
+import { DEFAULT_MODEL, resolveApiKey, loadConfig, isHttpMcpServer } from "@chiron-os/shared";
+import type { McpServerConfig } from "@chiron-os/shared";
 
 export interface AgentRunnerConfig {
   agentId: string;
@@ -94,6 +95,24 @@ function createBusMcpServerForAgent(ctx: BusMcpContext) {
       }, busHandler(ctx, "escalate")),
     ],
   });
+}
+
+/**
+ * Convert user-configured MCP servers to SDK-compatible format.
+ * Adds type discriminator: stdio servers get type 'stdio', URL servers default to 'http'.
+ */
+function buildExternalMcpServers(
+  servers: Record<string, McpServerConfig>
+): Record<string, { type?: "stdio"; command: string; args?: string[]; env?: Record<string, string> } | { type: "http" | "sse"; url: string; headers?: Record<string, string> }> {
+  const result: Record<string, { type?: "stdio"; command: string; args?: string[]; env?: Record<string, string> } | { type: "http" | "sse"; url: string; headers?: Record<string, string> }> = {};
+  for (const [name, cfg] of Object.entries(servers)) {
+    if (isHttpMcpServer(cfg)) {
+      result[name] = { type: cfg.type ?? "http", url: cfg.url, headers: cfg.headers };
+    } else {
+      result[name] = { type: cfg.type ?? "stdio", command: cfg.command, args: cfg.args, env: cfg.env };
+    }
+  }
+  return result;
 }
 
 export class AgentRunner extends EventEmitter {
@@ -218,6 +237,7 @@ export class AgentRunner extends EventEmitter {
           allowDangerouslySkipPermissions: true,
           mcpServers: {
             "chiron-bus": busMcpServer,
+            ...buildExternalMcpServers(config.mcpServers),
           },
           hooks: {
             Stop: [{

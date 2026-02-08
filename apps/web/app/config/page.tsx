@@ -3,11 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
-interface McpServerConfig {
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-}
+type McpServerConfig =
+  | { type?: "stdio"; command: string; args?: string[]; env?: Record<string, string> }
+  | { type?: "http" | "sse"; url: string; headers?: Record<string, string> };
 
 interface Config {
   apiKey: string;
@@ -224,7 +222,7 @@ export default function ConfigPage() {
               <p className="text-xs mt-1 text-red-400">{mcpError}</p>
             )}
             <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
-              {"Example: { \"github\": { \"command\": \"npx\", \"args\": [\"@anthropic-ai/mcp-server-github\"] } }"}
+              {"Stdio: { \"github\": { \"command\": \"npx\", \"args\": [\"...\"] } } — HTTP: { \"ctx\": { \"url\": \"https://...\", \"headers\": { ... } } }"}
             </p>
           </Label>
         </Section>
