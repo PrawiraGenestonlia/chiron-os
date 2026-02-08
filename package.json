@@ -1,0 +1,29 @@
+{
+  "name": "chiron-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first orchestration layer for autonomous AI teams",
+  "license": "MIT",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "db:push": "pnpm --filter @chiron-os/db db:push",
+    "db:seed": "pnpm --filter @chiron-os/db db:seed"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^25.2.1",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "eslint": "^9.39.2",
+    "globals": "^17.3.0",
+    "turbo": "^2.8.3",
+    "typescript": "^5.9.3"
+  }
+}
