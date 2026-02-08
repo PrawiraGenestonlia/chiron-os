@@ -2,11 +2,14 @@ import { createServer } from "node:http";
 import { parse } from "node:url";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
-import { DEFAULT_PORT } from "@chiron-os/shared";
+import { DEFAULT_PORT, probeClaudeCodeAuth } from "@chiron-os/shared";
 import { LifecycleManager, EscalationManager } from "@chiron-os/core";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);
+
+// Fire auth probe early so it's cached before first page render
+probeClaudeCodeAuth();
 
 const app = next({ dev, hostname: "localhost", port });
 const handle = app.getRequestHandler();
