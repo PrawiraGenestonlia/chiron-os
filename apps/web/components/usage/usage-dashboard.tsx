@@ -10,6 +10,7 @@ interface TeamUsage {
 
 interface BreakdownEntry {
   agentId: string;
+  agentName?: string;
   model: string;
   totalInputTokens: number;
   totalOutputTokens: number;
@@ -61,7 +62,7 @@ export function UsageDashboard({ teamId, initialUsage, initialBreakdown }: Usage
   return (
     <div className="space-y-6">
       {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Tokens"
           value={formatTokens(totalTokens)}
@@ -117,7 +118,7 @@ export function UsageDashboard({ teamId, initialUsage, initialBreakdown }: Usage
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-mono" style={{ color: "var(--foreground)" }}>
-                        {entry.agentId.slice(0, 8)}
+                        {entry.agentName ?? entry.agentId.slice(0, 8)}
                       </span>
                       <span
                         className="text-xs px-1.5 py-0.5 rounded"

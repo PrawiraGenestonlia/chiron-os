@@ -137,11 +137,11 @@ export function KanbanBoard({ teamId, initialTasks }: KanbanBoardProps) {
         )}
       </div>
 
-      <div className="grid grid-cols-6 gap-3 min-h-[400px]">
+      <div className="flex gap-3 min-h-[400px] overflow-x-auto pb-2">
         {COLUMNS.map((col) => {
           const columnTasks = tasks.filter((t) => t.status === col.status);
           return (
-            <div key={col.status}>
+            <div key={col.status} className="shrink-0 w-52">
               <div className="flex items-center gap-2 mb-2 px-1">
                 <span
                   className="inline-block w-2 h-2 rounded-full"

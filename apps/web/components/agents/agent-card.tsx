@@ -26,7 +26,7 @@ const STATUS_LABELS: Record<AgentStatus, string> = {
 };
 
 interface AgentCardProps {
-  agent: Agent;
+  agent: Agent & { personaName?: string; personaShortCode?: string; personaColor?: string };
   onRestart?: (agentId: string) => void;
   streamText?: string;
 }
@@ -49,9 +49,22 @@ export function AgentCard({ agent, onRestart, streamText }: AgentCardProps) {
       style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
     >
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold" style={{ color: "var(--card-foreground)" }}>
-          {agent.name}
-        </h3>
+        <div className="flex items-center gap-2">
+          {agent.personaShortCode && (
+            <span
+              className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded"
+              style={{
+                backgroundColor: `${agent.personaColor ?? "#6b7280"}20`,
+                color: agent.personaColor ?? "#6b7280",
+              }}
+            >
+              {agent.personaShortCode}
+            </span>
+          )}
+          <h3 className="font-semibold" style={{ color: "var(--card-foreground)" }}>
+            {agent.name}
+          </h3>
+        </div>
         <div className="flex items-center gap-1.5">
           <span
             className="inline-block w-2 h-2 rounded-full"
@@ -67,6 +80,12 @@ export function AgentCard({ agent, onRestart, streamText }: AgentCardProps) {
       </div>
 
       <div className="space-y-1.5 text-xs" style={{ color: "var(--muted-foreground)" }}>
+        {agent.personaName && (
+          <div className="flex justify-between">
+            <span>Role</span>
+            <span>{agent.personaName}</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span>ID</span>
           <span className="font-mono">{agent.id.slice(0, 8)}</span>

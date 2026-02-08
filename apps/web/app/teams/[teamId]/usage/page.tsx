@@ -1,4 +1,4 @@
-import { getUsageByTeam, getUsageBreakdown } from "@chiron-os/db";
+import { getUsageByTeam, getUsageBreakdown, getAgentById } from "@chiron-os/db";
 import { UsageDashboard } from "@/components/usage/usage-dashboard";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,10 @@ export default async function UsagePage({ params }: PageProps) {
     totalOutputTokens: 0,
     totalCostUsd: 0,
   };
-  const breakdown = getUsageBreakdown(teamId);
+  const breakdown = getUsageBreakdown(teamId).map((entry) => {
+    const agent = getAgentById(entry.agentId);
+    return { ...entry, agentName: agent?.name ?? entry.agentId.slice(0, 8) };
+  });
 
   return (
     <div className="p-6">

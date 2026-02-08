@@ -6,13 +6,15 @@ import { useWebSocket } from "@/hooks/use-websocket";
 import { AgentCard } from "./agent-card";
 import { toast } from "@/components/ui/toast";
 
+type EnrichedAgent = Agent & { personaName?: string; personaShortCode?: string; personaColor?: string };
+
 interface AgentListProps {
   teamId: string;
-  initialAgents: Agent[];
+  initialAgents: EnrichedAgent[];
 }
 
 export function AgentList({ teamId, initialAgents }: AgentListProps) {
-  const [agents, setAgents] = useState<Agent[]>(initialAgents);
+  const [agents, setAgents] = useState<EnrichedAgent[]>(initialAgents);
   const [streamTexts, setStreamTexts] = useState<Record<string, string>>({});
   const buffersRef = useRef<Record<string, string>>({});
   const frameRef = useRef<number | null>(null);
