@@ -1,4 +1,5 @@
 import { getAllTeams, getAgentsByTeam, getTasksByTeam } from "@chiron-os/db";
+import { loadConfig, resolveApiKey } from "@chiron-os/shared";
 import Link from "next/link";
 import { CreateTeamDialog } from "@/components/team/create-team-dialog";
 
@@ -6,48 +7,72 @@ export const dynamic = "force-dynamic";
 
 export default function HomePage() {
   const teams = getAllTeams();
+  const config = loadConfig(process.cwd());
+  const hasApiKey = !!resolveApiKey(config);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+      {/* API key warning */}
+      {!hasApiKey && (
+        <div
+          className="mb-6 px-4 py-3 rounded-lg border text-sm flex items-center gap-3"
+          style={{
+            backgroundColor: "rgba(234,179,8,0.1)",
+            borderColor: "rgba(234,179,8,0.3)",
+            color: "#facc15",
+          }}
+        >
+          <span>No API key configured.</span>
+          <Link href="/config" className="underline hover:no-underline">
+            Add one in Config
+          </Link>
+          <span style={{ color: "var(--muted-foreground)" }}>
+            or set <code className="text-xs">ANTHROPIC_API_KEY</code> env var.
+          </span>
+        </div>
+      )}
+
+      {/* Header area */}
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight font-mono" style={{ color: "var(--foreground)" }}>
-            Chiron OS
+          <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
+            Teams
           </h1>
-          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-            AI Team Orchestration
+          <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+            {teams.length} team{teams.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div className="flex gap-3">
-          <Link
-            href="/personas"
-            className="px-4 py-2 text-sm rounded-md border transition-colors hover:bg-white/5"
-            style={{ borderColor: "var(--border)", color: "var(--secondary-foreground)" }}
-          >
-            Personas
-          </Link>
-          <Link
-            href="/config"
-            className="px-4 py-2 text-sm rounded-md border transition-colors hover:bg-white/5"
-            style={{ borderColor: "var(--border)", color: "var(--secondary-foreground)" }}
-          >
-            Config
-          </Link>
-          <CreateTeamDialog />
-        </div>
+        <CreateTeamDialog />
       </div>
 
       {teams.length === 0 ? (
         <div
-          className="text-center py-20 rounded-lg border border-dashed"
+          className="rounded-lg border border-dashed p-10"
           style={{ borderColor: "var(--border)" }}
         >
-          <p className="text-lg mb-2" style={{ color: "var(--muted-foreground)" }}>
-            No teams yet
-          </p>
-          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-            Create a team to get started with autonomous AI agents
-          </p>
+          <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--foreground)" }}>
+            Get Started
+          </h2>
+          <div className="space-y-4">
+            {[
+              { step: "1", title: "Configure API key", desc: "Set your Anthropic API key in Config or via environment variable." },
+              { step: "2", title: "Create a team", desc: "Click \"New Team\" above. Give it a name, a goal, and select personas (PM, PD, ENG)." },
+              { step: "3", title: "Start the team", desc: "Agents will introduce themselves, discuss the goal, create tasks, and begin working." },
+            ].map((s) => (
+              <div key={s.step} className="flex gap-3">
+                <span
+                  className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                  style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }}
+                >
+                  {s.step}
+                </span>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{s.title}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

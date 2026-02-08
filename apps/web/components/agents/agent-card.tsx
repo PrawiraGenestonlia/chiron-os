@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import type { Agent, AgentStatus } from "@chiron-os/shared";
 
 const STATUS_COLORS: Record<AgentStatus, string> = {
@@ -27,12 +28,20 @@ const STATUS_LABELS: Record<AgentStatus, string> = {
 interface AgentCardProps {
   agent: Agent;
   onRestart?: (agentId: string) => void;
+  streamText?: string;
 }
 
-export function AgentCard({ agent, onRestart }: AgentCardProps) {
+export function AgentCard({ agent, onRestart, streamText }: AgentCardProps) {
   const status = agent.status as AgentStatus;
   const color = STATUS_COLORS[status] ?? "#6b7280";
   const isActive = status === "running" || status === "thinking" || status === "tool_use";
+  const preRef = useRef<HTMLPreElement>(null);
+
+  useEffect(() => {
+    if (preRef.current) {
+      preRef.current.scrollTop = preRef.current.scrollHeight;
+    }
+  }, [streamText]);
 
   return (
     <div
@@ -67,6 +76,20 @@ export function AgentCard({ agent, onRestart }: AgentCardProps) {
           <span className="font-mono">{agent.modelOverride ?? "default"}</span>
         </div>
       </div>
+
+      {streamText && (
+        <pre
+          ref={preRef}
+          className="mt-3 text-[11px] leading-relaxed overflow-auto whitespace-pre-wrap break-words rounded p-2"
+          style={{
+            backgroundColor: "var(--background)",
+            color: "var(--muted-foreground)",
+            maxHeight: 100,
+          }}
+        >
+          {streamText}
+        </pre>
+      )}
 
       {onRestart && (
         <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>

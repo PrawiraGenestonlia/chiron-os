@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { Agent, AgentStatus, WSServerEvent } from "@chiron-os/shared";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { AgentCard } from "./agent-card";
+import { toast } from "@/components/ui/toast";
 
 interface AgentListProps {
   teamId: string;
@@ -12,6 +13,9 @@ interface AgentListProps {
 
 export function AgentList({ teamId, initialAgents }: AgentListProps) {
   const [agents, setAgents] = useState<Agent[]>(initialAgents);
+  const [streamTexts, setStreamTexts] = useState<Record<string, string>>({});
+  const buffersRef = useRef<Record<string, string>>({});
+  const frameRef = useRef<number | null>(null);
 
   const handleWsMessage = useCallback((event: WSServerEvent) => {
     if (event.type === "agent:status") {
@@ -23,17 +27,35 @@ export function AgentList({ teamId, initialAgents }: AgentListProps) {
         )
       );
     }
+    if (event.type === "agent:stream") {
+      const { agentId, chunk } = event.data;
+      const current = buffersRef.current[agentId] ?? "";
+      buffersRef.current[agentId] = (current + chunk).slice(-500);
+
+      if (!frameRef.current) {
+        frameRef.current = requestAnimationFrame(() => {
+          setStreamTexts({ ...buffersRef.current });
+          frameRef.current = null;
+        });
+      }
+    }
   }, []);
 
   const { connected } = useWebSocket({ teamId, onMessage: handleWsMessage });
 
   const handleRestart = async (agentId: string) => {
     try {
-      await fetch(`/api/teams/${teamId}/agents/${agentId}/restart`, {
+      const res = await fetch(`/api/teams/${teamId}/agents/${agentId}/restart`, {
         method: "POST",
       });
+      if (res.ok) {
+        toast("Agent restarting", "info");
+      } else {
+        toast("Failed to restart agent", "error");
+      }
     } catch (err) {
       console.error("Failed to restart agent:", err);
+      toast("Failed to restart agent", "error");
     }
   };
 
@@ -56,7 +78,12 @@ export function AgentList({ teamId, initialAgents }: AgentListProps) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {agents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} onRestart={handleRestart} />
+            <AgentCard
+              key={agent.id}
+              agent={agent}
+              onRestart={handleRestart}
+              streamText={streamTexts[agent.id]}
+            />
           ))}
         </div>
       )}

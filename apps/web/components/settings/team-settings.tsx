@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "@/components/ui/toast";
 
 interface TeamSettingsProps {
   teamId: string;
@@ -29,10 +30,14 @@ export function TeamSettings({ teamId, initialName, initialGoal, initialWorkspac
 
       if (res.ok) {
         setSaved(true);
+        toast("Settings saved", "success");
         setTimeout(() => setSaved(false), 2000);
+      } else {
+        toast("Failed to save settings", "error");
       }
     } catch (err) {
       console.error("Failed to save settings:", err);
+      toast("Failed to save settings", "error");
     }
 
     setSaving(false);

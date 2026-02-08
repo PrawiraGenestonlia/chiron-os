@@ -186,6 +186,11 @@ export type WSServerEvent =
   | { type: "task:created"; data: Task }
   | { type: "task:updated"; data: Task }
   | { type: "escalation:new"; data: Escalation }
+  | { type: "escalation:resolved"; data: Escalation }
+  | { type: "team:status"; data: { teamId: string; status: TeamStatus } }
+  | { type: "vote:started"; data: { teamId: string; escalationId: string; reason: string } }
+  | { type: "vote:resolved"; data: { teamId: string; escalationId: string } }
+  | { type: "vote:deadlocked"; data: { teamId: string; escalationId: string } }
   | { type: "usage:update"; data: TokenUsage }
   | { type: "error"; data: { message: string } };
 

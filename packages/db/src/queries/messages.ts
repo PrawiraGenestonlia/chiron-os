@@ -1,6 +1,6 @@
 import { eq, desc, and, isNull, lt } from "drizzle-orm";
 import { db } from "../client.js";
-import { messages } from "../schema/index.js";
+import { messages, channels } from "../schema/index.js";
 import { generateId, nowISO } from "@chiron-os/shared";
 import type { MessageCreate } from "@chiron-os/shared";
 
@@ -36,6 +36,30 @@ export function getThreadMessages(threadId: string) {
 
 export function getMessageById(id: string) {
   return db.select().from(messages).where(eq(messages.id, id)).get();
+}
+
+export function getRecentMessagesByTeam(teamId: string, limit = 10) {
+  return db
+    .select({
+      id: messages.id,
+      channelId: messages.channelId,
+      authorId: messages.authorId,
+      authorRole: messages.authorRole,
+      authorName: messages.authorName,
+      threadId: messages.threadId,
+      content: messages.content,
+      messageType: messages.messageType,
+      metadata: messages.metadata,
+      createdAt: messages.createdAt,
+      channelName: channels.name,
+    })
+    .from(messages)
+    .innerJoin(channels, eq(messages.channelId, channels.id))
+    .where(eq(channels.teamId, teamId))
+    .orderBy(desc(messages.createdAt))
+    .limit(limit)
+    .all()
+    .reverse();
 }
 
 export function createMessage(data: MessageCreate) {

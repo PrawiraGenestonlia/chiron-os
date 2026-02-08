@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Escalation, WSServerEvent } from "@chiron-os/shared";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { toast } from "@/components/ui/toast";
 
 const STATUS_COLORS: Record<string, string> = {
   open: "#ef4444",
@@ -64,9 +65,13 @@ export function EscalationList({ teamId, initialEscalations }: EscalationListPro
         setEscalations((prev) =>
           prev.map((e) => (e.id === escalationId ? updated : e))
         );
+        toast("Escalation resolved", "success");
+      } else {
+        toast("Failed to resolve escalation", "error");
       }
     } catch (err) {
       console.error("Failed to resolve escalation:", err);
+      toast("Failed to resolve escalation", "error");
     }
 
     setResolving(null);

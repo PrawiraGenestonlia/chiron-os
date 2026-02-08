@@ -24,32 +24,31 @@ You manage AI teams like a manager -- monitoring activity, providing feedback, a
 ## Quick Start
 
 ```bash
-# Clone the repo
 git clone https://github.com/anthropics/chiron-os.git
 cd chiron-os
-
-# Install dependencies
 pnpm install
+pnpm setup
+```
 
-# Initialize the database and seed default personas
-pnpm db:push
-pnpm db:seed
+The setup script initializes the database, seeds default personas, and creates a template config file.
 
-# Configure your API key (pick one method):
+**Configure your API key** (pick one method):
 
-# Option A: Create a config file
+```bash
+# Option A: Edit the generated config file
 echo '{ "apiKey": "sk-ant-your-key-here" }' > chiron.config.json
 
 # Option B: Use an environment variable
 export ANTHROPIC_API_KEY="sk-ant-your-key-here"
 
 # Option C: If you have Claude Code installed, auth is automatic
-
-# Start the development server
-pnpm dev
 ```
 
-Open **http://localhost:4173** in your browser.
+Then start the dev server and open **http://localhost:4173**:
+
+```bash
+pnpm dev
+```
 
 ## Usage
 

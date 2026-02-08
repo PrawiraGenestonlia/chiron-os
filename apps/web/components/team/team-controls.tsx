@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/toast";
 
 interface TeamControlsProps {
   teamId: string;
@@ -11,7 +12,6 @@ interface TeamControlsProps {
 export function TeamControls({ teamId, initialStatus }: TeamControlsProps) {
   const [status, setStatus] = useState(initialStatus);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const isRunning = status === "running";
@@ -19,7 +19,6 @@ export function TeamControls({ teamId, initialStatus }: TeamControlsProps) {
 
   async function handleStart() {
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch(`/api/teams/${teamId}/start`, { method: "POST" });
       if (!res.ok) {
@@ -27,9 +26,10 @@ export function TeamControls({ teamId, initialStatus }: TeamControlsProps) {
         throw new Error(data.error ?? "Failed to start team");
       }
       setStatus("running");
+      toast("Team started", "success");
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to start");
+      toast(e instanceof Error ? e.message : "Failed to start", "error");
     } finally {
       setLoading(false);
     }
@@ -37,7 +37,6 @@ export function TeamControls({ teamId, initialStatus }: TeamControlsProps) {
 
   async function handleStop() {
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch(`/api/teams/${teamId}/stop`, { method: "POST" });
       if (!res.ok) {
@@ -45,9 +44,10 @@ export function TeamControls({ teamId, initialStatus }: TeamControlsProps) {
         throw new Error(data.error ?? "Failed to stop team");
       }
       setStatus("stopped");
+      toast("Team stopped", "info");
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to stop");
+      toast(e instanceof Error ? e.message : "Failed to stop", "error");
     } finally {
       setLoading(false);
     }
@@ -75,9 +75,6 @@ export function TeamControls({ teamId, initialStatus }: TeamControlsProps) {
         >
           {loading ? "Stopping..." : "Stop Team"}
         </button>
-      )}
-      {error && (
-        <span className="text-sm text-red-400">{error}</span>
       )}
     </div>
   );
