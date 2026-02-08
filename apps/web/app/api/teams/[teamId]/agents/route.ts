@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAgentsByTeam } from "@chiron-os/db";
+import { MAX_AGENTS_PER_TEAM } from "@chiron-os/shared";
 import { getLifecycle } from "@/lib/lifecycle";
 
 interface RouteContext {
@@ -20,6 +21,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!personaId || !name) {
     return NextResponse.json(
       { error: "personaId and name are required" },
+      { status: 400 }
+    );
+  }
+
+  const existing = getAgentsByTeam(teamId);
+  if (existing.length >= MAX_AGENTS_PER_TEAM) {
+    return NextResponse.json(
+      { error: `Maximum ${MAX_AGENTS_PER_TEAM} agents per team` },
       { status: 400 }
     );
   }

@@ -37,14 +37,19 @@ export function CreateTeamDialog() {
       });
   }, [open]);
 
+  const MAX_AGENTS = 10;
+
   function updateCount(personaId: string, delta: number) {
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.personaId === personaId
-          ? { ...m, count: Math.max(0, Math.min(10, m.count + delta)) }
-          : m
-      )
-    );
+    setMembers((prev) => {
+      const currentTotal = prev.reduce((sum, m) => sum + m.count, 0);
+      return prev.map((m) => {
+        if (m.personaId !== personaId) return m;
+        const newCount = Math.max(0, Math.min(10, m.count + delta));
+        const newTotal = currentTotal - m.count + newCount;
+        if (newTotal > MAX_AGENTS) return m;
+        return { ...m, count: newCount };
+      });
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {

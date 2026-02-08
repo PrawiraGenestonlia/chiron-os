@@ -21,6 +21,7 @@ export const TASK_STATUSES = ["backlog", "todo", "in_progress", "review", "done"
 export const TASK_PRIORITIES = ["low", "medium", "high", "critical"] as const;
 
 // ── Agent Limits ──────────────────────────────────────────
+export const MAX_AGENTS_PER_TEAM = 10;
 export const AGENT_MAX_RESTART_ATTEMPTS = 5;
 export const AGENT_RESTART_BACKOFF_BASE_MS = 1000;
 export const AGENT_RESTART_BACKOFF_MAX_MS = 60000;

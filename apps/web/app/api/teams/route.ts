@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllTeams, createTeam, createDefaultChannels, createAgent, getPersonaById } from "@chiron-os/db";
+import { MAX_AGENTS_PER_TEAM } from "@chiron-os/shared";
 
 export async function GET() {
   const teams = getAllTeams();
@@ -25,6 +26,14 @@ export async function POST(request: NextRequest) {
 
   if (!members || !Array.isArray(members) || members.length === 0) {
     return NextResponse.json({ error: "At least one team member is required" }, { status: 400 });
+  }
+
+  const totalRequested = members.reduce((sum, m) => sum + Math.max(0, m.count), 0);
+  if (totalRequested > MAX_AGENTS_PER_TEAM) {
+    return NextResponse.json(
+      { error: `Maximum ${MAX_AGENTS_PER_TEAM} agents per team` },
+      { status: 400 }
+    );
   }
 
   const team = createTeam({ name, goal });
