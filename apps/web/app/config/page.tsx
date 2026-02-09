@@ -511,6 +511,104 @@ function McpServerCard({
   );
 }
 
+function KeyValueRows({
+  label,
+  items,
+  onChange,
+  keyPlaceholder = "Key",
+  valuePlaceholder = "Value",
+  maskValues = false,
+}: {
+  label: string;
+  items: Array<{ key: string; value: string }>;
+  onChange: (items: Array<{ key: string; value: string }>) => void;
+  keyPlaceholder?: string;
+  valuePlaceholder?: string;
+  maskValues?: boolean;
+}) {
+  const [revealedIndices, setRevealedIndices] = useState<Set<number>>(new Set());
+
+  const inputStyle = {
+    backgroundColor: "var(--background)",
+    borderColor: "var(--border)",
+    color: "var(--foreground)",
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-medium" style={{ color: "var(--muted-foreground)" }}>
+          {label}
+        </span>
+        <button
+          onClick={() => onChange([...items, { key: "", value: "" }])}
+          className="text-xs px-1.5 py-0.5 rounded transition-colors hover:bg-white/5"
+          style={{ color: "#3b82f6" }}
+        >
+          + Add
+        </button>
+      </div>
+      {items.length === 0 && (
+        <p className="text-xs py-1" style={{ color: "var(--muted-foreground)" }}>
+          None configured
+        </p>
+      )}
+      {items.map((item, i) => (
+        <div key={i} className="flex gap-2 mb-1.5">
+          <input
+            value={item.key}
+            onChange={(e) => {
+              const next = [...items];
+              next[i] = { ...next[i], key: e.target.value };
+              onChange(next);
+            }}
+            placeholder={keyPlaceholder}
+            className="flex-1 px-2 py-1 rounded border text-xs font-mono focus:outline-none focus:ring-1"
+            style={inputStyle}
+          />
+          <div className="flex-[2] flex gap-1">
+            <input
+              type={maskValues && !revealedIndices.has(i) ? "password" : "text"}
+              value={item.value}
+              onChange={(e) => {
+                const next = [...items];
+                next[i] = { ...next[i], value: e.target.value };
+                onChange(next);
+              }}
+              placeholder={valuePlaceholder}
+              className="flex-1 px-2 py-1 rounded border text-xs font-mono focus:outline-none focus:ring-1"
+              style={inputStyle}
+            />
+            {maskValues && (
+              <button
+                onClick={() => {
+                  setRevealedIndices((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(i)) next.delete(i);
+                    else next.add(i);
+                    return next;
+                  });
+                }}
+                className="px-1.5 text-xs rounded transition-colors hover:bg-white/5 shrink-0"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {revealedIndices.has(i) ? "Hide" : "Show"}
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => onChange(items.filter((_, j) => j !== i))}
+            className="px-1.5 text-xs rounded transition-colors hover:bg-white/5 shrink-0"
+            style={{ color: "#ef4444" }}
+          >
+            x
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function McpServerEditor({
   initialName = "",
   initialConfig,
@@ -534,13 +632,94 @@ function McpServerEditor({
   const [url, setUrl] = useState(
     initialConfig && !isStdioServer(initialConfig) ? (initialConfig as { url: string }).url : ""
   );
+  const [headers, setHeaders] = useState<Array<{ key: string; value: string }>>(
+    initialConfig && !isStdioServer(initialConfig) && initialConfig.headers
+      ? Object.entries(initialConfig.headers).map(([key, value]) => ({ key, value }))
+      : []
+  );
+  const [env, setEnv] = useState<Array<{ key: string; value: string }>>(
+    initialConfig && isStdioServer(initialConfig) && initialConfig.env
+      ? Object.entries(initialConfig.env).map(([key, value]) => ({ key, value }))
+      : []
+  );
+  const [jsonMode, setJsonMode] = useState(false);
+  const [jsonText, setJsonText] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  function buildConfigFromForm(): McpServerConfig {
+    if (serverType === "stdio") {
+      return {
+        command: command.trim(),
+        ...(args.trim() ? { args: args.trim().split(/\s+/) } : {}),
+        ...(env.filter((e) => e.key).length > 0
+          ? { env: Object.fromEntries(env.filter((e) => e.key).map((e) => [e.key, e.value])) }
+          : {}),
+      };
+    }
+    return {
+      type: "http" as const,
+      url: url.trim(),
+      ...(headers.filter((h) => h.key).length > 0
+        ? { headers: Object.fromEntries(headers.filter((h) => h.key).map((h) => [h.key, h.value])) }
+        : {}),
+    };
+  }
+
+  function applyConfigToForm(cfg: McpServerConfig) {
+    if (isStdioServer(cfg)) {
+      setServerType("stdio");
+      setCommand(cfg.command);
+      setArgs((cfg.args ?? []).join(" "));
+      setEnv(cfg.env ? Object.entries(cfg.env).map(([key, value]) => ({ key, value })) : []);
+      setHeaders([]);
+      setUrl("");
+    } else {
+      setServerType("http");
+      setUrl(cfg.url);
+      setHeaders(cfg.headers ? Object.entries(cfg.headers).map(([key, value]) => ({ key, value })) : []);
+      setEnv([]);
+      setCommand("");
+      setArgs("");
+    }
+  }
+
+  function toggleJsonMode() {
+    if (!jsonMode) {
+      // Form -> JSON
+      const cfg = buildConfigFromForm();
+      setJsonText(JSON.stringify(cfg, null, 2));
+      setJsonMode(true);
+      setValidationError(null);
+    } else {
+      // JSON -> Form
+      try {
+        const parsed = JSON.parse(jsonText) as McpServerConfig;
+        applyConfigToForm(parsed);
+        setJsonMode(false);
+        setValidationError(null);
+      } catch {
+        setValidationError("Invalid JSON");
+      }
+    }
+  }
 
   function handleSubmit() {
     if (!serverName.trim()) {
       setValidationError("Name is required");
       return;
     }
+
+    if (jsonMode) {
+      try {
+        const parsed = JSON.parse(jsonText) as McpServerConfig;
+        setValidationError(null);
+        onSave(serverName.trim(), parsed);
+      } catch {
+        setValidationError("Invalid JSON");
+      }
+      return;
+    }
+
     if (serverType === "stdio" && !command.trim()) {
       setValidationError("Command is required");
       return;
@@ -551,15 +730,7 @@ function McpServerEditor({
     }
     setValidationError(null);
 
-    const cfg: McpServerConfig =
-      serverType === "stdio"
-        ? {
-            command: command.trim(),
-            ...(args.trim() ? { args: args.trim().split(/\s+/) } : {}),
-          }
-        : { type: "http" as const, url: url.trim() };
-
-    onSave(serverName.trim(), cfg);
+    onSave(serverName.trim(), buildConfigFromForm());
   }
 
   const inputStyle = {
@@ -587,62 +758,97 @@ function McpServerEditor({
             style={inputStyle}
           />
         </div>
-        <div className="w-40">
-          <span className="text-xs font-medium block mb-1" style={{ color: "var(--muted-foreground)" }}>
-            Type
-          </span>
-          <select
-            value={serverType}
-            onChange={(e) => setServerType(e.target.value as "stdio" | "http")}
-            className="w-full px-3 py-1.5 rounded border text-sm focus:outline-none"
-            style={inputStyle}
-          >
-            <option value="stdio">Local command</option>
-            <option value="http">HTTP endpoint</option>
-          </select>
-        </div>
+        {!jsonMode && (
+          <div className="w-40">
+            <span className="text-xs font-medium block mb-1" style={{ color: "var(--muted-foreground)" }}>
+              Type
+            </span>
+            <select
+              value={serverType}
+              onChange={(e) => setServerType(e.target.value as "stdio" | "http")}
+              className="w-full px-3 py-1.5 rounded border text-sm focus:outline-none"
+              style={inputStyle}
+            >
+              <option value="stdio">Local command</option>
+              <option value="http">HTTP endpoint</option>
+            </select>
+          </div>
+        )}
       </div>
 
-      {serverType === "stdio" ? (
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <span className="text-xs font-medium block mb-1" style={{ color: "var(--muted-foreground)" }}>
-              Command
-            </span>
-            <input
-              value={command}
-              onChange={(e) => setCommand(e.target.value)}
-              placeholder="e.g. npx, node, python"
-              className="w-full px-3 py-1.5 rounded border text-sm font-mono focus:outline-none focus:ring-1"
-              style={inputStyle}
-            />
-          </div>
-          <div className="flex-1">
-            <span className="text-xs font-medium block mb-1" style={{ color: "var(--muted-foreground)" }}>
-              Arguments
-            </span>
-            <input
-              value={args}
-              onChange={(e) => setArgs(e.target.value)}
-              placeholder="e.g. @modelcontextprotocol/server-github"
-              className="w-full px-3 py-1.5 rounded border text-sm font-mono focus:outline-none focus:ring-1"
-              style={inputStyle}
-            />
-          </div>
-        </div>
-      ) : (
+      {jsonMode ? (
         <div>
           <span className="text-xs font-medium block mb-1" style={{ color: "var(--muted-foreground)" }}>
-            Server URL
+            Server config (JSON)
           </span>
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://..."
-            className="w-full px-3 py-1.5 rounded border text-sm font-mono focus:outline-none focus:ring-1"
+          <textarea
+            value={jsonText}
+            onChange={(e) => setJsonText(e.target.value)}
+            rows={8}
+            className="w-full px-3 py-2 rounded border text-xs font-mono focus:outline-none focus:ring-1 resize-y"
             style={inputStyle}
+            spellCheck={false}
           />
         </div>
+      ) : serverType === "stdio" ? (
+        <>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <span className="text-xs font-medium block mb-1" style={{ color: "var(--muted-foreground)" }}>
+                Command
+              </span>
+              <input
+                value={command}
+                onChange={(e) => setCommand(e.target.value)}
+                placeholder="e.g. npx, node, python"
+                className="w-full px-3 py-1.5 rounded border text-sm font-mono focus:outline-none focus:ring-1"
+                style={inputStyle}
+              />
+            </div>
+            <div className="flex-1">
+              <span className="text-xs font-medium block mb-1" style={{ color: "var(--muted-foreground)" }}>
+                Arguments
+              </span>
+              <input
+                value={args}
+                onChange={(e) => setArgs(e.target.value)}
+                placeholder="e.g. @modelcontextprotocol/server-github"
+                className="w-full px-3 py-1.5 rounded border text-sm font-mono focus:outline-none focus:ring-1"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+          <KeyValueRows
+            label="Environment"
+            items={env}
+            onChange={setEnv}
+            keyPlaceholder="GITHUB_TOKEN"
+            valuePlaceholder="ghp_..."
+          />
+        </>
+      ) : (
+        <>
+          <div>
+            <span className="text-xs font-medium block mb-1" style={{ color: "var(--muted-foreground)" }}>
+              Server URL
+            </span>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://..."
+              className="w-full px-3 py-1.5 rounded border text-sm font-mono focus:outline-none focus:ring-1"
+              style={inputStyle}
+            />
+          </div>
+          <KeyValueRows
+            label="Headers"
+            items={headers}
+            onChange={setHeaders}
+            keyPlaceholder="Authorization"
+            valuePlaceholder="Bearer ..."
+            maskValues
+          />
+        </>
       )}
 
       {validationError && (
@@ -663,6 +869,14 @@ function McpServerEditor({
           style={{ color: "var(--muted-foreground)" }}
         >
           Cancel
+        </button>
+        <div className="flex-1" />
+        <button
+          onClick={toggleJsonMode}
+          className="text-xs px-2 py-1 rounded transition-colors hover:bg-white/5"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          {jsonMode ? "Back to form" : "Edit as JSON"}
         </button>
       </div>
     </div>
