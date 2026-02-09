@@ -212,3 +212,22 @@ export const memories = sqliteTable("memories", {
   filePath: text("file_path"),
   createdAt: text("created_at").notNull(),
 });
+
+// ── OAuth Tokens ─────────────────────────────────────────
+export const oauthTokens = sqliteTable("oauth_tokens", {
+  id: text("id").primaryKey(),
+  serverName: text("server_name").notNull().unique(),
+  serverUrl: text("server_url").notNull(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  tokenType: text("token_type").notNull().default("Bearer"),
+  expiresAt: text("expires_at"),
+  scope: text("scope"),
+  clientId: text("client_id"),
+  clientSecret: text("client_secret"),
+  authorizationEndpoint: text("authorization_endpoint"),
+  tokenEndpoint: text("token_endpoint"),
+  registrationEndpoint: text("registration_endpoint"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

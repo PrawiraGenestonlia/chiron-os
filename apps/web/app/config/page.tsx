@@ -1,12 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type McpServerConfig =
   | { type?: "stdio"; command: string; args?: string[]; env?: Record<string, string> }
   | { type?: "http" | "sse"; url: string; headers?: Record<string, string> };
+
+interface OAuthTokenStatus {
+  serverName: string;
+  serverUrl: string;
+  expiresAt: string | null;
+  isExpired: boolean;
+  isConnected: boolean;
+  hasRefreshToken: boolean;
+}
 
 interface Config {
   apiKey: string;
@@ -44,6 +53,23 @@ export default function ConfigPage() {
   const [addingServer, setAddingServer] = useState(false);
   const [editingServer, setEditingServer] = useState<string | null>(null);
 
+  // OAuth state
+  const [oauthStatuses, setOauthStatuses] = useState<Record<string, OAuthTokenStatus>>({});
+  const [connectingServer, setConnectingServer] = useState<string | null>(null);
+
+  const fetchOAuthStatuses = useCallback(() => {
+    fetch("/api/mcp-oauth/status")
+      .then((r) => r.json())
+      .then((data: { tokens: OAuthTokenStatus[] }) => {
+        const map: Record<string, OAuthTokenStatus> = {};
+        for (const t of data.tokens) {
+          map[t.serverName] = t;
+        }
+        setOauthStatuses(map);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetch("/api/config")
       .then((r) => r.json())
@@ -54,7 +80,72 @@ export default function ConfigPage() {
         const isKnown = KNOWN_MODELS.some((m) => m.id === data.defaultModel);
         setCustomModel(!isKnown);
       });
-  }, []);
+    fetchOAuthStatuses();
+  }, [fetchOAuthStatuses]);
+
+  // Listen for OAuth popup completion
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (event.data?.type === "mcp-oauth-complete") {
+        setConnectingServer(null);
+        fetchOAuthStatuses();
+      }
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [fetchOAuthStatuses]);
+
+  async function handleOAuthConnect(serverName: string, serverUrl: string) {
+    if (!config) return;
+    setConnectingServer(serverName);
+    setError(null);
+    try {
+      // Auto-save config first so the server entry persists to chiron.config.json
+      const saveRes = await fetch("/api/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiKey: config.apiKey,
+          defaultModel: config.defaultModel,
+          agentModelOverrides: config.agentModelOverrides,
+          mcpServers,
+          maxBudgetUsd: config.maxBudgetUsd,
+          idleNudgeIntervalMinutes: config.idleNudgeIntervalMinutes,
+          idleNudgeBudgetThreshold: config.idleNudgeBudgetThreshold,
+        }),
+      });
+      if (!saveRes.ok) {
+        setError("Failed to save config before connecting");
+        setConnectingServer(null);
+        return;
+      }
+
+      const res = await fetch("/api/mcp-oauth/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serverName, serverUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "OAuth initiation failed");
+        setConnectingServer(null);
+        return;
+      }
+      window.open(data.authorizationUrl, "mcp-oauth", "width=600,height=700");
+    } catch {
+      setError("Failed to start OAuth flow");
+      setConnectingServer(null);
+    }
+  }
+
+  async function handleOAuthDisconnect(serverName: string) {
+    await fetch("/api/mcp-oauth/disconnect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ serverName }),
+    });
+    fetchOAuthStatuses();
+  }
 
   async function handleSave() {
     if (!config) return;
@@ -388,6 +479,8 @@ export default function ConfigPage() {
                 name={name}
                 config={cfg}
                 isEditing={editingServer === name}
+                oauthStatus={oauthStatuses[name]}
+                isConnecting={connectingServer === name}
                 onEdit={() => setEditingServer(editingServer === name ? null : name)}
                 onSave={(newName, newCfg) => {
                   setMcpServers((prev) => {
@@ -399,6 +492,8 @@ export default function ConfigPage() {
                   setEditingServer(null);
                 }}
                 onRemove={() => handleRemoveServer(name)}
+                onOAuthConnect={(url) => handleOAuthConnect(name, url)}
+                onOAuthDisconnect={() => handleOAuthDisconnect(name)}
               />
             ))}
 
@@ -469,20 +564,29 @@ function McpServerCard({
   name,
   config,
   isEditing,
+  oauthStatus,
+  isConnecting,
   onEdit,
   onSave,
   onRemove,
+  onOAuthConnect,
+  onOAuthDisconnect,
 }: {
   name: string;
   config: McpServerConfig;
   isEditing: boolean;
+  oauthStatus?: OAuthTokenStatus;
+  isConnecting?: boolean;
   onEdit: () => void;
   onSave: (name: string, config: McpServerConfig) => void;
   onRemove: () => void;
+  onOAuthConnect?: (url: string) => void;
+  onOAuthDisconnect?: () => void;
 }) {
   const isStdio = isStdioServer(config);
   const serverType = isStdio ? "Local command" : "HTTP endpoint";
   const detail = isStdio ? config.command : (config as { url: string }).url;
+  const httpUrl = !isStdio ? (config as { url: string }).url : null;
 
   if (isEditing) {
     return (
@@ -507,14 +611,61 @@ function McpServerCard({
         {name.slice(0, 2).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
-          {name}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
+            {name}
+          </span>
+          {oauthStatus?.isConnected && (
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
+              style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e" }}
+            >
+              Connected
+            </span>
+          )}
+          {oauthStatus && !oauthStatus.isConnected && oauthStatus.isExpired && (
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
+              style={{ backgroundColor: "rgba(245,158,11,0.15)", color: "#f59e0b" }}
+            >
+              Expired
+            </span>
+          )}
         </div>
         <div className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
           {serverType} &middot; <span className="font-mono">{detail}</span>
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        {httpUrl && !oauthStatus?.isConnected && (
+          <button
+            onClick={() => onOAuthConnect?.(httpUrl)}
+            disabled={isConnecting}
+            className="text-xs px-2 py-1 rounded transition-colors hover:bg-white/5 disabled:opacity-50"
+            style={{ color: "#3b82f6" }}
+          >
+            {isConnecting ? "Connecting..." : "Connect"}
+          </button>
+        )}
+        {oauthStatus?.isConnected && (
+          <button
+            onClick={() => onOAuthDisconnect?.()}
+            className="text-xs px-2 py-1 rounded transition-colors hover:bg-white/5"
+            style={{ color: "#f59e0b" }}
+          >
+            Disconnect
+          </button>
+        )}
+        {oauthStatus && !oauthStatus.isConnected && oauthStatus.isExpired && (
+          <button
+            onClick={() => httpUrl && onOAuthConnect?.(httpUrl)}
+            disabled={isConnecting}
+            className="text-xs px-2 py-1 rounded transition-colors hover:bg-white/5 disabled:opacity-50"
+            style={{ color: "#f59e0b" }}
+          >
+            Reconnect
+          </button>
+        )}
         <button
           onClick={onEdit}
           className="text-xs px-2 py-1 rounded transition-colors hover:bg-white/5"
@@ -862,6 +1013,10 @@ function McpServerEditor({
               className="w-full px-3 py-1.5 rounded border text-sm font-mono focus:outline-none focus:ring-1"
               style={inputStyle}
             />
+            <p className="text-[11px] mt-1.5" style={{ color: "var(--muted-foreground)" }}>
+              For OAuth servers, use Connect after saving. Fallback:{" "}
+              <span className="font-mono">npx -y mcp-remote &lt;url&gt;</span> as a Local command.
+            </p>
           </div>
           <KeyValueRows
             label="Headers"

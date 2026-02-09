@@ -4,7 +4,7 @@ import { parse } from "node:url";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
 import { DEFAULT_PORT, probeClaudeCodeAuth, loadConfig } from "@chiron-os/shared";
-import { LifecycleManager, EscalationManager, getLogger } from "@chiron-os/core";
+import { LifecycleManager, EscalationManager, getLogger, OAuthStateStore } from "@chiron-os/core";
 import type { LogEntry } from "@chiron-os/shared";
 
 const dev = process.env.NODE_ENV !== "production";
@@ -36,6 +36,10 @@ function broadcast(teamId: string, event: unknown) {
 const config = loadConfig(process.cwd());
 const authToken = config.authToken ?? randomBytes(32).toString("hex");
 (globalThis as Record<string, unknown>).__chiron_auth_token = authToken;
+
+// Global OAuth state store — shared with API routes via globalThis
+const oauthStateStore = new OAuthStateStore();
+(globalThis as Record<string, unknown>).__chiron_oauth_state = oauthStateStore;
 
 // Global lifecycle manager and escalation manager — shared with API routes via globalThis
 const lifecycle = new LifecycleManager();
@@ -185,6 +189,7 @@ app.prepare().then(() => {
   const shutdown = () => {
     console.log("\nShutting down Chiron OS...");
     logger.shutdown();
+    oauthStateStore.shutdown();
     lifecycle.shutdown();
     wss.close();
     server.close();

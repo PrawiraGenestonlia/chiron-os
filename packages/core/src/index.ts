@@ -9,3 +9,18 @@ export type { BusMcpContext, BusToolName } from "./mcp/bus-mcp-server.js";
 export { TokenTracker } from "./tracking/token-tracker.js";
 export { EscalationManager } from "./escalation/escalation-manager.js";
 export { Logger, getLogger } from "./logging/logger.js";
+export {
+  discoverOAuthMetadata,
+  registerClient,
+  generatePKCE,
+  buildAuthorizationUrl,
+  exchangeCodeForTokens,
+  refreshAccessToken,
+  OAuthStateStore,
+} from "./oauth/index.js";
+export type {
+  OAuthMetadata,
+  OAuthDiscoveryResult,
+  OAuthStateEntry,
+  TokenResponse,
+} from "./oauth/index.js";

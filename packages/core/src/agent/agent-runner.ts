@@ -9,7 +9,7 @@ import type { BusToolName } from "../mcp/bus-mcp-server.js";
 import { MessageBus } from "../bus/message-bus.js";
 import { TokenTracker } from "../tracking/token-tracker.js";
 import { EscalationManager } from "../escalation/escalation-manager.js";
-import { updateAgentStatus } from "@chiron-os/db";
+import { updateAgentStatus, getOAuthTokensForServers, upsertOAuthToken } from "@chiron-os/db";
 import type { AgentStatus } from "@chiron-os/shared";
 import {
   DEFAULT_MODEL,
@@ -23,6 +23,7 @@ import {
   DEFAULT_CONTEXT_WINDOW_THRESHOLD,
 } from "@chiron-os/shared";
 import type { McpServerConfig } from "@chiron-os/shared";
+import { refreshAccessToken } from "../oauth/mcp-oauth.js";
 
 export interface AgentRunnerConfig {
   agentId: string;
@@ -119,14 +120,21 @@ function createBusMcpServerForAgent(ctx: BusMcpContext) {
 /**
  * Convert user-configured MCP servers to SDK-compatible format.
  * Adds type discriminator: stdio servers get type 'stdio', URL servers default to 'http'.
+ * If oauthTokens are provided, injects Authorization headers for matching HTTP servers.
  */
 function buildExternalMcpServers(
-  servers: Record<string, McpServerConfig>
+  servers: Record<string, McpServerConfig>,
+  oauthTokens?: Map<string, { accessToken: string; tokenType: string }>
 ): Record<string, { type?: "stdio"; command: string; args?: string[]; env?: Record<string, string> } | { type: "http" | "sse"; url: string; headers?: Record<string, string> }> {
   const result: Record<string, { type?: "stdio"; command: string; args?: string[]; env?: Record<string, string> } | { type: "http" | "sse"; url: string; headers?: Record<string, string> }> = {};
   for (const [name, cfg] of Object.entries(servers)) {
     if (isHttpMcpServer(cfg)) {
-      result[name] = { type: cfg.type ?? "http", url: cfg.url, headers: cfg.headers };
+      const headers = { ...cfg.headers };
+      const token = oauthTokens?.get(name);
+      if (token && !headers["Authorization"]) {
+        headers["Authorization"] = `${token.tokenType} ${token.accessToken}`;
+      }
+      result[name] = { type: cfg.type ?? "http", url: cfg.url, headers };
     } else {
       result[name] = { type: cfg.type ?? "stdio", command: cfg.command, args: cfg.args, env: cfg.env };
     }
@@ -335,6 +343,57 @@ export class AgentRunner extends EventEmitter {
 
     const busMcpServer = createBusMcpServerForAgent(busCtx);
 
+    // Fetch OAuth tokens for HTTP MCP servers
+    const oauthTokenMap = new Map<string, { accessToken: string; tokenType: string }>();
+    const httpServerNames = Object.entries(config.mcpServers)
+      .filter(([, cfg]) => isHttpMcpServer(cfg))
+      .map(([name]) => name);
+
+    if (httpServerNames.length > 0) {
+      const storedTokens = getOAuthTokensForServers(httpServerNames);
+      for (const t of storedTokens) {
+        const isExpired = t.expiresAt ? new Date(t.expiresAt) < new Date() : false;
+        if (isExpired && t.refreshToken && t.tokenEndpoint && t.clientId) {
+          try {
+            const refreshed = await refreshAccessToken({
+              tokenEndpoint: t.tokenEndpoint,
+              refreshToken: t.refreshToken,
+              clientId: t.clientId,
+              clientSecret: t.clientSecret ?? undefined,
+            });
+            const expiresAt = refreshed.expires_in
+              ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
+              : null;
+            upsertOAuthToken({
+              serverName: t.serverName,
+              serverUrl: t.serverUrl,
+              accessToken: refreshed.access_token,
+              refreshToken: refreshed.refresh_token ?? t.refreshToken,
+              tokenType: refreshed.token_type ?? t.tokenType,
+              expiresAt,
+              clientId: t.clientId,
+              clientSecret: t.clientSecret,
+              tokenEndpoint: t.tokenEndpoint,
+              authorizationEndpoint: t.authorizationEndpoint,
+              registrationEndpoint: t.registrationEndpoint,
+            });
+            oauthTokenMap.set(t.serverName, {
+              accessToken: refreshed.access_token,
+              tokenType: refreshed.token_type ?? "Bearer",
+            });
+            console.log(`[${this.config.agentName}] Refreshed OAuth token for ${t.serverName}`);
+          } catch (err) {
+            console.error(`[${this.config.agentName}] Failed to refresh token for ${t.serverName}:`, err);
+          }
+        } else if (!isExpired) {
+          oauthTokenMap.set(t.serverName, {
+            accessToken: t.accessToken,
+            tokenType: t.tokenType,
+          });
+        }
+      }
+    }
+
     try {
       console.log(`[${this.config.agentName}] Starting SDK query with model=${model}`);
 
@@ -352,7 +411,7 @@ export class AgentRunner extends EventEmitter {
           allowDangerouslySkipPermissions: true,
           mcpServers: {
             "chiron-bus": busMcpServer,
-            ...buildExternalMcpServers(config.mcpServers),
+            ...buildExternalMcpServers(config.mcpServers, oauthTokenMap),
           },
           hooks: {
             Stop: [{

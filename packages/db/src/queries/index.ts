@@ -8,4 +8,5 @@ export * from "./token-usage.js";
 export * from "./escalations.js";
 export * from "./memories.js";
 export * from "./logs.js";
+export * from "./oauth-tokens.js";
 export { withTransaction } from "../client.js";
