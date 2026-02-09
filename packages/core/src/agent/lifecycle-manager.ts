@@ -40,6 +40,7 @@ export class LifecycleManager extends EventEmitter {
   private idleMonitors = new Map<string, IdleMonitor>();
   private tokenTracker = new TokenTracker();
   private escalationManager?: EscalationManager;
+  private broadcastFn?: (teamId: string, event: unknown) => void;
   private pendingContextSummaries = new Map<string, string>();
 
   constructor() {
@@ -58,6 +59,10 @@ export class LifecycleManager extends EventEmitter {
 
   setEscalationManager(em: EscalationManager): void {
     this.escalationManager = em;
+  }
+
+  setBroadcast(fn: (teamId: string, event: unknown) => void): void {
+    this.broadcastFn = fn;
   }
 
   /**
@@ -169,6 +174,7 @@ export class LifecycleManager extends EventEmitter {
       tokenTracker: this.tokenTracker,
       escalationManager: this.escalationManager,
       teamAgentCount: teamAgents.length,
+      broadcast: this.broadcastFn,
       onStatusChange: (id, status) => {
         this.emit("agent:status", { agentId: id, status, teamId: agentRecord.teamId });
       },
@@ -447,12 +453,15 @@ export class LifecycleManager extends EventEmitter {
   }
 
   /**
-   * Reset any agents stuck in active states from a previous server session.
+   * Reset any teams/agents stuck in active states from a previous server session.
    * Should be called once on server startup.
    */
-  resetStaleAgentStatuses(): void {
+  resetStaleStatuses(): void {
     const teams = getAllTeams();
     for (const team of teams) {
+      if (team.status !== "idle" && team.status !== "stopped") {
+        updateTeam(team.id, { status: "stopped" });
+      }
       const agents = getAgentsByTeam(team.id);
       for (const agent of agents) {
         if (agent.status !== "idle" && agent.status !== "stopped") {

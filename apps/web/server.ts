@@ -43,9 +43,10 @@ const oauthStateStore = new OAuthStateStore();
 
 // Global lifecycle manager and escalation manager — shared with API routes via globalThis
 const lifecycle = new LifecycleManager();
-lifecycle.resetStaleAgentStatuses();
+lifecycle.resetStaleStatuses();
 const escalationManager = new EscalationManager();
 lifecycle.setEscalationManager(escalationManager);
+lifecycle.setBroadcast(broadcast);
 
 // Wire logger events to WebSocket broadcasts
 const logger = getLogger();
