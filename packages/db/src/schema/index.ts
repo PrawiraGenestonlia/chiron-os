@@ -213,6 +213,46 @@ export const memories = sqliteTable("memories", {
   createdAt: text("created_at").notNull(),
 });
 
+// ── Deployments ─────────────────────────────────────────
+export const deployments = sqliteTable(
+  "deployments",
+  {
+    id: text("id").primaryKey(),
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    agentId: text("agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    provider: text("provider", {
+      enum: ["vercel", "netlify", "other"],
+    })
+      .notNull()
+      .default("vercel"),
+    projectName: text("project_name").notNull(),
+    deploymentUrl: text("deployment_url"),
+    inspectUrl: text("inspect_url"),
+    status: text("status", {
+      enum: ["queued", "building", "ready", "error", "canceled"],
+    })
+      .notNull()
+      .default("queued"),
+    environment: text("environment", {
+      enum: ["production", "preview", "development"],
+    })
+      .notNull()
+      .default("production"),
+    commitSha: text("commit_sha"),
+    commitMessage: text("commit_message"),
+    meta: text("meta", { mode: "json" }),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("deployments_team_created_idx").on(table.teamId, table.createdAt),
+  ]
+);
+
 // ── OAuth Tokens ─────────────────────────────────────────
 export const oauthTokens = sqliteTable("oauth_tokens", {
   id: text("id").primaryKey(),

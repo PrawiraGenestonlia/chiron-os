@@ -94,6 +94,7 @@ export function TeamSidebar({
         { href: `/teams/${teamId}/usage`, label: "Usage", icon: "chart" },
         { href: `/teams/${teamId}/logs`, label: "Logs", icon: "logs" },
         { href: `/teams/${teamId}/files`, label: "Files", icon: "folder" },
+        { href: `/teams/${teamId}/deployments`, label: "Deploys", icon: "rocket" },
       ],
     },
     {
@@ -270,6 +271,14 @@ function NavIcon({ name }: { name: string }) {
         <svg {...s} viewBox="0 0 16 16">
           <circle cx="8" cy="8" r="2.5" />
           <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" />
+        </svg>
+      );
+    case "rocket":
+      return (
+        <svg {...s} viewBox="0 0 16 16">
+          <path d="M8 1c-2 2-3 5-3 8l-2 2h10l-2-2c0-3-1-6-3-8z" />
+          <circle cx="8" cy="7" r="1.5" />
+          <path d="M5 14l1-3M11 14l-1-3" />
         </svg>
       );
     default:

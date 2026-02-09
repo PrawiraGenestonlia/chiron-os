@@ -84,6 +84,28 @@ When you find improvements:
 If genuinely polished, stay silent. Don't invent busywork.`;
   }
 
+  // SRE proactive section
+  let sreProactiveSection = "";
+  if (persona.shortCode === "sre") {
+    sreProactiveSection = `
+
+## Proactive Reliability Monitoring
+
+When you receive a "[System: Idle Check]" message:
+- **Deployment health**: Use Vercel MCP tools to check recent deployment status
+- **Error logs**: Review runtime logs for new errors or warnings
+- **Build status**: Check if latest builds are succeeding
+- **Performance**: Look for slow responses or timeout patterns
+
+When you find issues:
+1. Post analysis to #engineering with specific error details
+2. Create prioritized tasks for ENG
+3. Save findings using save_learning
+4. Follow up on previously reported issues — check if fixes were deployed
+
+If everything is healthy, stay silent. Don't invent busywork.`;
+  }
+
   return `${persona.basePrompt}
 
 ---
@@ -167,6 +189,7 @@ When the team's goal is fully achieved (all tasks done, code working, tests pass
 2. Each agent confirms completion with a brief message
 3. After confirming completion, wait for new instructions or system idle checks. Only respond if a teammate, human, or system sends a new message requiring action.
 ${pmProactiveSection}
+${sreProactiveSection}
 `;
 }
 

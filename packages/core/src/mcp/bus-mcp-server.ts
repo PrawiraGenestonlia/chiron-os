@@ -1,6 +1,6 @@
 import { MessageBus } from "../bus/message-bus.js";
-import { createTask, updateTask, getTasksByTeam, getTaskById, createMemory, getMemoriesByTeam } from "@chiron-os/db";
-import type { TaskCreate, TaskUpdate } from "@chiron-os/shared";
+import { createTask, updateTask, getTasksByTeam, getTaskById, createMemory, getMemoriesByTeam, createDeployment, updateDeployment, getDeploymentsByTeam, getDeploymentById } from "@chiron-os/db";
+import type { TaskCreate, TaskUpdate, DeploymentCreate, DeploymentUpdate } from "@chiron-os/shared";
 import { EscalationManager } from "../escalation/escalation-manager.js";
 import { getLogger } from "../logging/logger.js";
 
@@ -11,6 +11,7 @@ export interface BusMcpContext {
   bus: MessageBus;
   escalationManager?: EscalationManager;
   teamAgentCount?: number;
+  broadcast?: (teamId: string, event: unknown) => void;
 }
 
 export type BusToolName =
@@ -23,7 +24,10 @@ export type BusToolName =
   | "cast_vote"
   | "escalate"
   | "save_learning"
-  | "get_learnings";
+  | "get_learnings"
+  | "report_deployment"
+  | "update_deployment"
+  | "list_deployments";
 
 export interface BusToolResult {
   content: Array<{ type: "text"; text: string }>;
@@ -69,6 +73,15 @@ export function handleBusTool(
         break;
       case "get_learnings":
         result = handleGetLearnings(ctx, input);
+        break;
+      case "report_deployment":
+        result = handleReportDeployment(ctx, input);
+        break;
+      case "update_deployment":
+        result = handleUpdateDeployment(ctx, input);
+        break;
+      case "list_deployments":
+        result = handleListDeployments(ctx);
         break;
       default:
         return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
@@ -326,6 +339,73 @@ function handleGetLearnings(ctx: BusMcpContext, input: Record<string, unknown>):
   return { content: [{ type: "text", text: formatted }] };
 }
 
+function handleReportDeployment(ctx: BusMcpContext, input: Record<string, unknown>): BusToolResult {
+  const projectName = input.project_name as string;
+  if (!projectName) {
+    return { content: [{ type: "text", text: "project_name is required" }], isError: true };
+  }
+
+  const data: DeploymentCreate = {
+    teamId: ctx.teamId,
+    agentId: ctx.agentId,
+    projectName,
+    provider: (input.provider as DeploymentCreate["provider"]) ?? "vercel",
+    deploymentUrl: input.deployment_url as string | undefined,
+    inspectUrl: input.inspect_url as string | undefined,
+    status: (input.status as DeploymentCreate["status"]) ?? "queued",
+    environment: (input.environment as DeploymentCreate["environment"]) ?? "production",
+    commitSha: input.commit_sha as string | undefined,
+    commitMessage: input.commit_message as string | undefined,
+    meta: input.meta as Record<string, unknown> | undefined,
+  };
+
+  const deployment = createDeployment(data);
+  ctx.broadcast?.(ctx.teamId, { type: "deployment:new", data: deployment });
+  getLogger().info(ctx.teamId, "task.created", { deploymentId: deployment.id, projectName }, ctx.agentId);
+  return { content: [{ type: "text", text: `Deployment reported: "${projectName}" (id: ${deployment.id}, status: ${deployment.status})` }] };
+}
+
+function handleUpdateDeployment(ctx: BusMcpContext, input: Record<string, unknown>): BusToolResult {
+  const deploymentId = input.deployment_id as string;
+  if (!deploymentId) {
+    return { content: [{ type: "text", text: "deployment_id is required" }], isError: true };
+  }
+
+  const existing = getDeploymentById(deploymentId);
+  if (!existing) {
+    return { content: [{ type: "text", text: `Deployment ${deploymentId} not found` }], isError: true };
+  }
+
+  if (existing.teamId !== ctx.teamId) {
+    return { content: [{ type: "text", text: `Deployment ${deploymentId} does not belong to this team` }], isError: true };
+  }
+
+  const updates: DeploymentUpdate = {};
+  if (input.status !== undefined) updates.status = input.status as DeploymentUpdate["status"];
+  if (input.deployment_url !== undefined) updates.deploymentUrl = input.deployment_url as string;
+  if (input.inspect_url !== undefined) updates.inspectUrl = input.inspect_url as string;
+  if (input.meta !== undefined) updates.meta = input.meta as Record<string, unknown>;
+
+  const updated = updateDeployment(deploymentId, updates);
+  if (updated) {
+    ctx.broadcast?.(ctx.teamId, { type: "deployment:updated", data: updated });
+  }
+  return { content: [{ type: "text", text: `Deployment updated: "${updated?.projectName}" (status: ${updated?.status})` }] };
+}
+
+function handleListDeployments(ctx: BusMcpContext): BusToolResult {
+  const deps = getDeploymentsByTeam(ctx.teamId, 20);
+  if (deps.length === 0) {
+    return { content: [{ type: "text", text: "No deployments found" }] };
+  }
+
+  const formatted = deps
+    .map((d) => `- [${d.status}] ${d.projectName} (${d.provider}, ${d.environment}, id: ${d.id})${d.deploymentUrl ? ` → ${d.deploymentUrl}` : ""}`)
+    .join("\n");
+
+  return { content: [{ type: "text", text: formatted }] };
+}
+
 export const BUS_TOOL_DEFINITIONS = [
   {
     name: "send_message",
@@ -480,6 +560,65 @@ export const BUS_TOOL_DEFINITIONS = [
           description: "Filter by category, or omit for all",
         },
       },
+      required: [],
+    },
+  },
+  {
+    name: "report_deployment",
+    description: "Report a new deployment to the team dashboard. Call this after triggering a deployment via Vercel or other providers.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_name: { type: "string", description: "Project/app name being deployed" },
+        deployment_url: { type: "string", description: "Live deployment URL" },
+        inspect_url: { type: "string", description: "Deployment dashboard/inspect URL" },
+        status: {
+          type: "string",
+          enum: ["queued", "building", "ready", "error", "canceled"],
+          description: "Deployment status (default: queued)",
+        },
+        environment: {
+          type: "string",
+          enum: ["production", "preview", "development"],
+          description: "Target environment (default: production)",
+        },
+        provider: {
+          type: "string",
+          enum: ["vercel", "netlify", "other"],
+          description: "Deployment provider (default: vercel)",
+        },
+        commit_sha: { type: "string", description: "Git commit SHA" },
+        commit_message: { type: "string", description: "Git commit message" },
+        meta: { type: "object", description: "Additional metadata (JSON)" },
+      },
+      required: ["project_name"],
+    },
+  },
+  {
+    name: "update_deployment",
+    description: "Update an existing deployment's status or URLs. Call when a deployment finishes building, goes live, or fails.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        deployment_id: { type: "string", description: "Deployment ID to update" },
+        status: {
+          type: "string",
+          enum: ["queued", "building", "ready", "error", "canceled"],
+          description: "New status",
+        },
+        deployment_url: { type: "string", description: "Updated live URL" },
+        inspect_url: { type: "string", description: "Updated inspect URL" },
+        meta: { type: "object", description: "Additional metadata to merge" },
+      },
+      required: ["deployment_id"],
+    },
+  },
+  {
+    name: "list_deployments",
+    description: "List recent deployments for this team",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
       required: [],
     },
   },

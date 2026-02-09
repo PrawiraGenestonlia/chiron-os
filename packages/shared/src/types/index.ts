@@ -203,6 +203,45 @@ export interface LogEntry {
   createdAt: string;
 }
 
+// ── Deployments ──────────────────────────────────────────
+export type DeploymentStatus = "queued" | "building" | "ready" | "error" | "canceled";
+export type DeploymentEnvironment = "production" | "preview" | "development";
+export type DeploymentProvider = "vercel" | "netlify" | "other";
+
+export interface Deployment {
+  id: string;
+  teamId: string;
+  agentId: string | null;
+  provider: DeploymentProvider;
+  projectName: string;
+  deploymentUrl: string | null;
+  inspectUrl: string | null;
+  status: DeploymentStatus;
+  environment: DeploymentEnvironment;
+  commitSha: string | null;
+  commitMessage: string | null;
+  meta: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DeploymentCreate = Pick<Deployment, "teamId"> & {
+  agentId?: string;
+  provider?: DeploymentProvider;
+  projectName: string;
+  deploymentUrl?: string;
+  inspectUrl?: string;
+  status?: DeploymentStatus;
+  environment?: DeploymentEnvironment;
+  commitSha?: string;
+  commitMessage?: string;
+  meta?: Record<string, unknown>;
+};
+
+export type DeploymentUpdate = Partial<
+  Pick<Deployment, "status" | "deploymentUrl" | "inspectUrl" | "environment" | "meta">
+>;
+
 // ── WebSocket Events ──────────────────────────────────────
 export type WSServerEvent =
   | { type: "message:new"; data: Message }
@@ -219,6 +258,8 @@ export type WSServerEvent =
   | { type: "usage:update"; data: TokenUsage }
   | { type: "idle:nudge"; data: { teamId: string; nudgeCount: number; nextNudgeAt: string | null; status: "active" | "backed_off" | "hibernating" } }
   | { type: "log:new"; data: LogEntry }
+  | { type: "deployment:new"; data: Deployment }
+  | { type: "deployment:updated"; data: Deployment }
   | { type: "error"; data: { message: string } };
 
 export type WSClientEvent =

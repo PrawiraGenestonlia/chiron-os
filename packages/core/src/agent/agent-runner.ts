@@ -36,6 +36,7 @@ export interface AgentRunnerConfig {
   tokenTracker: TokenTracker;
   escalationManager?: EscalationManager;
   teamAgentCount?: number;
+  broadcast?: (teamId: string, event: unknown) => void;
   onStatusChange?: (agentId: string, status: AgentStatus) => void;
   onStream?: (agentId: string, chunk: string) => void;
 }
@@ -113,6 +114,28 @@ function createBusMcpServerForAgent(ctx: BusMcpContext) {
       tool("get_learnings", "Retrieve saved team learnings and past decisions.", {
         category: z.optional(z.string()).describe("Filter by category, or omit for all"),
       }, busHandler(ctx, "get_learnings")),
+
+      tool("report_deployment", "Report a new deployment to the team dashboard. Call after triggering a deployment via Vercel or other providers.", {
+        project_name: z.string().describe("Project/app name being deployed"),
+        deployment_url: z.optional(z.string()).describe("Live deployment URL"),
+        inspect_url: z.optional(z.string()).describe("Deployment dashboard/inspect URL"),
+        status: z.optional(z.enum(["queued", "building", "ready", "error", "canceled"])).describe("Deployment status (default: queued)"),
+        environment: z.optional(z.enum(["production", "preview", "development"])).describe("Target environment (default: production)"),
+        provider: z.optional(z.enum(["vercel", "netlify", "other"])).describe("Deployment provider (default: vercel)"),
+        commit_sha: z.optional(z.string()).describe("Git commit SHA"),
+        commit_message: z.optional(z.string()).describe("Git commit message"),
+        meta: z.optional(z.record(z.string(), z.unknown())).describe("Additional metadata (JSON)"),
+      }, busHandler(ctx, "report_deployment")),
+
+      tool("update_deployment", "Update an existing deployment's status or URLs. Call when a deployment finishes building, goes live, or fails.", {
+        deployment_id: z.string().describe("Deployment ID to update"),
+        status: z.optional(z.enum(["queued", "building", "ready", "error", "canceled"])).describe("New status"),
+        deployment_url: z.optional(z.string()).describe("Updated live URL"),
+        inspect_url: z.optional(z.string()).describe("Updated inspect URL"),
+        meta: z.optional(z.record(z.string(), z.unknown())).describe("Additional metadata to merge"),
+      }, busHandler(ctx, "update_deployment")),
+
+      tool("list_deployments", "List recent deployments for this team.", {}, busHandler(ctx, "list_deployments")),
     ],
   });
 }
@@ -339,6 +362,7 @@ export class AgentRunner extends EventEmitter {
       bus: this.config.bus,
       escalationManager: this.config.escalationManager,
       teamAgentCount: this.config.teamAgentCount,
+      broadcast: this.config.broadcast,
     };
 
     const busMcpServer = createBusMcpServerForAgent(busCtx);
