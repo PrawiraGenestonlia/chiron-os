@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type McpServerConfig =
   | { type?: "stdio"; command: string; args?: string[]; env?: Record<string, string> }
@@ -96,7 +97,29 @@ export default function ConfigPage() {
   if (!config) {
     return (
       <div className="p-8 max-w-3xl mx-auto">
-        <p style={{ color: "var(--muted-foreground)" }}>Loading...</p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <Skeleton className="h-7 w-24 mb-1" />
+            <Skeleton className="h-4 w-56" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-28 rounded-md" />
+            <Skeleton className="h-9 w-16 rounded-md" />
+          </div>
+        </div>
+        <div className="space-y-6">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-lg border p-5"
+              style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
+            >
+              <Skeleton className="h-4 w-24 mb-1" />
+              <Skeleton className="h-3 w-64 mb-4" />
+              <Skeleton className="h-9 w-full rounded-md" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
