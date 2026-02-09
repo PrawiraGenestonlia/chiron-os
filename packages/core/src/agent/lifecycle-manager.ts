@@ -2,9 +2,11 @@ import { EventEmitter } from "node:events";
 import { mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { AgentRunner, type AgentRunnerConfig } from "./agent-runner.js";
+import { buildContextRotationSummary } from "./prompt-builder.js";
 import { IdleMonitor } from "./idle-monitor.js";
 import { MessageBus } from "../bus/message-bus.js";
 import { TokenTracker } from "../tracking/token-tracker.js";
+import { getLogger } from "../logging/logger.js";
 import {
   getAgentsByTeam,
   getTeamById,
@@ -38,6 +40,7 @@ export class LifecycleManager extends EventEmitter {
   private idleMonitors = new Map<string, IdleMonitor>();
   private tokenTracker = new TokenTracker();
   private escalationManager?: EscalationManager;
+  private pendingContextSummaries = new Map<string, string>();
 
   constructor() {
     super();
@@ -176,6 +179,13 @@ export class LifecycleManager extends EventEmitter {
 
     const runner = new AgentRunner(config);
 
+    // Apply pending context summary from rotation
+    const pendingSummary = this.pendingContextSummaries.get(agentId);
+    if (pendingSummary) {
+      runner.setContextSummary(pendingSummary);
+      this.pendingContextSummaries.delete(agentId);
+    }
+
     // Create the bus listener as a named function so we can remove it later
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const busListener = (message: any) => {
@@ -189,9 +199,42 @@ export class LifecycleManager extends EventEmitter {
     const entry: AgentEntry = { runner, failCount: 0, restartTimer: null, busListener };
     this.agents.set(agentId, entry);
 
+    const logger = getLogger();
+
+    // Handle context rotation
+    runner.on("context:rotation_needed", async (data: { agentId: string; cumulativeInputTokens: number }) => {
+      logger.info(agentRecord.teamId, "agent.context_rotation", {
+        agentId: data.agentId,
+        cumulativeInputTokens: data.cumulativeInputTokens,
+      }, data.agentId);
+
+      // Build context summary from DB state
+      const summary = buildContextRotationSummary({
+        agentId: data.agentId,
+        agentName: agentRecord.name,
+        teamId: agentRecord.teamId,
+        personaId: agentRecord.personaId,
+      });
+
+      // Stop current runner gracefully
+      runner.stop();
+
+      // Store summary for the next start
+      this.pendingContextSummaries.set(data.agentId, summary);
+
+      // Restart agent (picks up pending summary) — NOT an error restart
+      await this.startAgent(data.agentId).catch((e) => {
+        console.error(`Failed to restart agent ${data.agentId} after context rotation:`, e);
+      });
+    });
+
     // Handle errors with exponential backoff restart
     runner.on("error", (err) => {
       console.error(`Agent ${agentId} error:`, err);
+      logger.error(agentRecord.teamId, "agent.error", {
+        agentId,
+        error: err instanceof Error ? err.message : JSON.stringify(err),
+      }, agentId);
       entry.failCount++;
 
       if (entry.failCount >= AGENT_MAX_RESTART_ATTEMPTS) {
@@ -208,6 +251,11 @@ export class LifecycleManager extends EventEmitter {
       );
 
       console.log(`Restarting agent ${agentId} in ${delay}ms (attempt ${entry.failCount})`);
+      logger.info(agentRecord.teamId, "agent.restarting", {
+        agentId,
+        attempt: entry.failCount,
+        delayMs: delay,
+      }, agentId);
       updateAgentStatus(agentId, "restarting");
       this.emit("agent:status", { agentId, status: "restarting", teamId: agentRecord.teamId });
 
@@ -225,6 +273,8 @@ export class LifecycleManager extends EventEmitter {
 
     // Subscribe bus messages to feed the agent
     bus.on("message", busListener);
+
+    logger.info(agentRecord.teamId, "agent.started", { agentId, name: agentRecord.name }, agentId);
 
     // Start the agent (non-blocking)
     runner.start().catch((err) => {
@@ -261,6 +311,9 @@ export class LifecycleManager extends EventEmitter {
     for (const agent of agents) {
       await this.startAgent(agent.id);
     }
+
+    const logger = getLogger();
+    logger.info(teamId, "team.started", { agentCount: agents.length });
 
     // Start idle monitor if configured
     const config = loadConfig(process.cwd());
@@ -323,6 +376,8 @@ export class LifecycleManager extends EventEmitter {
    * Stop all agents for a team
    */
   stopTeam(teamId: string): void {
+    const logger = getLogger();
+
     // Stop idle monitor
     const monitor = this.idleMonitors.get(teamId);
     if (monitor) {
@@ -335,9 +390,11 @@ export class LifecycleManager extends EventEmitter {
       this.stopAgent(agent.id);
       updateAgentStatus(agent.id, "stopped");
       this.emit("agent:status", { agentId: agent.id, status: "stopped" });
+      logger.info(teamId, "agent.stopped", { agentId: agent.id }, agent.id);
     }
 
     updateTeam(teamId, { status: "stopped" });
+    logger.info(teamId, "team.stopped", { agentCount: agents.length });
     this.emit("team:status", { teamId, status: "stopped" });
   }
 

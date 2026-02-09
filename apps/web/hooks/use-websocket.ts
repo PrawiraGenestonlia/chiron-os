@@ -15,12 +15,30 @@ export function useWebSocket({ teamId, onMessage }: UseWebSocketOptions) {
   onMessageRef.current = onMessage;
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const tokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
 
-    function connect() {
+    async function fetchToken(): Promise<string | null> {
+      if (tokenRef.current) return tokenRef.current;
+      try {
+        const res = await fetch("/api/auth/token");
+        if (res.ok) {
+          const data = await res.json();
+          tokenRef.current = data.token;
+          return data.token;
+        }
+      } catch {
+        // Token fetch failed
+      }
+      return null;
+    }
+
+    async function connect() {
       if (!mountedRef.current) return;
+
+      const token = await fetchToken();
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
@@ -28,7 +46,7 @@ export function useWebSocket({ teamId, onMessage }: UseWebSocketOptions) {
 
       ws.onopen = () => {
         setConnected(true);
-        ws.send(JSON.stringify({ type: "subscribe", data: { teamId } }));
+        ws.send(JSON.stringify({ type: "subscribe", data: { teamId, token } }));
       };
 
       ws.onmessage = (event) => {

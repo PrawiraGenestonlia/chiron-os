@@ -178,6 +178,31 @@ export interface Memory {
   createdAt: string;
 }
 
+// ── Logs ─────────────────────────────────────────────────
+export type LogLevel = "debug" | "info" | "warn" | "error";
+
+export type LogEvent =
+  | "agent.started" | "agent.stopped" | "agent.error" | "agent.restarting"
+  | "agent.context_rotation"
+  | "tool.called" | "message.sent"
+  | "task.created" | "task.updated"
+  | "vote.started" | "vote.resolved" | "vote.deadlocked"
+  | "escalation.created" | "escalation.resolved"
+  | "budget.warning" | "budget.exceeded"
+  | "token.recorded" | "queue.aggregated"
+  | "team.started" | "team.stopped";
+
+export interface LogEntry {
+  id: string;
+  teamId: string;
+  agentId: string | null;
+  level: LogLevel;
+  event: LogEvent;
+  data: Record<string, unknown> | null;
+  latencyMs: number | null;
+  createdAt: string;
+}
+
 // ── WebSocket Events ──────────────────────────────────────
 export type WSServerEvent =
   | { type: "message:new"; data: Message }
@@ -193,10 +218,11 @@ export type WSServerEvent =
   | { type: "vote:deadlocked"; data: { teamId: string; escalationId: string } }
   | { type: "usage:update"; data: TokenUsage }
   | { type: "idle:nudge"; data: { teamId: string; nudgeCount: number; nextNudgeAt: string | null; status: "active" | "backed_off" | "hibernating" } }
+  | { type: "log:new"; data: LogEntry }
   | { type: "error"; data: { message: string } };
 
 export type WSClientEvent =
-  | { type: "subscribe"; data: { teamId: string } }
+  | { type: "subscribe"; data: { teamId: string; token?: string } }
   | { type: "unsubscribe"; data: { teamId: string } }
   | { type: "message:send"; data: MessageCreate }
   | { type: "task:update"; data: { taskId: string } & TaskUpdate }

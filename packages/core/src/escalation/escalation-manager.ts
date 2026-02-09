@@ -7,6 +7,7 @@ import {
   updateEscalationStatus,
 } from "@chiron-os/db";
 import type { Escalation, EscalationStatus } from "@chiron-os/shared";
+import { getLogger } from "../logging/logger.js";
 
 interface VoteSession {
   escalationId: string;
@@ -160,6 +161,10 @@ export class EscalationManager extends EventEmitter {
     if (!updated) return null;
 
     const escalation = updated as Escalation;
+    getLogger().info(escalation.teamId, "escalation.resolved", {
+      escalationId,
+      resolution,
+    });
     this.emit("escalation:resolved", {
       teamId: escalation.teamId,
       escalation,

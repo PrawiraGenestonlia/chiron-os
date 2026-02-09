@@ -179,6 +179,27 @@ export const escalations = sqliteTable("escalations", {
   createdAt: text("created_at").notNull(),
 });
 
+// ── Logs ─────────────────────────────────────────────────
+export const logs = sqliteTable(
+  "logs",
+  {
+    id: text("id").primaryKey(),
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    agentId: text("agent_id"),
+    level: text("level", { enum: ["debug", "info", "warn", "error"] }).notNull(),
+    event: text("event").notNull(),
+    data: text("data", { mode: "json" }),
+    latencyMs: integer("latency_ms"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("logs_team_created_idx").on(table.teamId, table.createdAt),
+    index("logs_team_level_idx").on(table.teamId, table.level),
+  ]
+);
+
 // ── Memories ──────────────────────────────────────────────
 export const memories = sqliteTable("memories", {
   id: text("id").primaryKey(),

@@ -1,9 +1,11 @@
 import { createServer } from "node:http";
+import { randomBytes } from "node:crypto";
 import { parse } from "node:url";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
-import { DEFAULT_PORT, probeClaudeCodeAuth } from "@chiron-os/shared";
-import { LifecycleManager, EscalationManager } from "@chiron-os/core";
+import { DEFAULT_PORT, probeClaudeCodeAuth, loadConfig } from "@chiron-os/shared";
+import { LifecycleManager, EscalationManager, getLogger } from "@chiron-os/core";
+import type { LogEntry } from "@chiron-os/shared";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);
@@ -16,6 +18,8 @@ const handle = app.getRequestHandler();
 
 // Track subscriptions: teamId -> Set<WebSocket>
 const subscriptions = new Map<string, Set<WebSocket>>();
+// Track authenticated connections
+const authenticatedClients = new WeakSet<WebSocket>();
 
 function broadcast(teamId: string, event: unknown) {
   const clients = subscriptions.get(teamId);
@@ -28,11 +32,22 @@ function broadcast(teamId: string, event: unknown) {
   }
 }
 
+// Generate or load auth token
+const config = loadConfig(process.cwd());
+const authToken = config.authToken ?? randomBytes(32).toString("hex");
+(globalThis as Record<string, unknown>).__chiron_auth_token = authToken;
+
 // Global lifecycle manager and escalation manager — shared with API routes via globalThis
 const lifecycle = new LifecycleManager();
 lifecycle.resetStaleAgentStatuses();
 const escalationManager = new EscalationManager();
 lifecycle.setEscalationManager(escalationManager);
+
+// Wire logger events to WebSocket broadcasts
+const logger = getLogger();
+logger.on("log:new", (logEntry: LogEntry) => {
+  broadcast(logEntry.teamId, { type: "log:new", data: logEntry });
+});
 
 // Wire escalation events to WebSocket broadcasts
 escalationManager.on("escalation:new", (data: { teamId: string; escalation: unknown }) => {
@@ -102,6 +117,15 @@ app.prepare().then(() => {
         switch (event.type) {
           case "subscribe": {
             const teamId = event.data?.teamId;
+            const token = event.data?.token;
+
+            // Validate auth token
+            if (token !== authToken) {
+              ws.close(1008, "Invalid auth token");
+              return;
+            }
+            authenticatedClients.add(ws);
+
             if (teamId) {
               subscribedTeams.add(teamId);
               if (!subscriptions.has(teamId)) {
@@ -120,6 +144,7 @@ app.prepare().then(() => {
             break;
           }
           case "message:send": {
+            if (!authenticatedClients.has(ws)) break;
             const { teamId, channelName, content } = event.data ?? {};
             if (teamId && channelName && content) {
               // Limit content size to prevent abuse
@@ -131,6 +156,7 @@ app.prepare().then(() => {
             break;
           }
           case "agent:restart": {
+            if (!authenticatedClients.has(ws)) break;
             const agentId = event.data?.agentId;
             if (agentId && typeof agentId === "string") {
               lifecycle.restartAgent(agentId).catch((err) => {
@@ -158,6 +184,7 @@ app.prepare().then(() => {
   // Graceful shutdown
   const shutdown = () => {
     console.log("\nShutting down Chiron OS...");
+    logger.shutdown();
     lifecycle.shutdown();
     wss.close();
     server.close();
@@ -168,6 +195,7 @@ app.prepare().then(() => {
   process.on("SIGTERM", shutdown);
 
   server.listen(port, () => {
-    console.log(`\n  Chiron OS running at http://localhost:${port}\n`);
+    console.log(`\n  Chiron OS running at http://localhost:${port}`);
+    console.log(`  Auth Token: ${authToken}\n`);
   });
 });

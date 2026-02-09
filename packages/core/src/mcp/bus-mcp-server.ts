@@ -2,6 +2,7 @@ import { MessageBus } from "../bus/message-bus.js";
 import { createTask, updateTask, getTasksByTeam, getTaskById, createMemory, getMemoriesByTeam } from "@chiron-os/db";
 import type { TaskCreate, TaskUpdate } from "@chiron-os/shared";
 import { EscalationManager } from "../escalation/escalation-manager.js";
+import { getLogger } from "../logging/logger.js";
 
 export interface BusMcpContext {
   agentId: string;
@@ -34,31 +35,47 @@ export function handleBusTool(
   toolName: BusToolName,
   input: Record<string, unknown>
 ): BusToolResult {
+  const start = Date.now();
+  const logger = getLogger();
   try {
+    let result: BusToolResult;
     switch (toolName) {
       case "send_message":
-        return handleSendMessage(ctx, input);
+        result = handleSendMessage(ctx, input);
+        break;
       case "read_channel":
-        return handleReadChannel(ctx, input);
+        result = handleReadChannel(ctx, input);
+        break;
       case "create_task":
-        return handleCreateTask(ctx, input);
+        result = handleCreateTask(ctx, input);
+        break;
       case "update_task":
-        return handleUpdateTask(ctx, input);
+        result = handleUpdateTask(ctx, input);
+        break;
       case "list_tasks":
-        return handleListTasks(ctx);
+        result = handleListTasks(ctx);
+        break;
       case "call_vote":
-        return handleCallVote(ctx, input);
+        result = handleCallVote(ctx, input);
+        break;
       case "cast_vote":
-        return handleCastVote(ctx, input);
+        result = handleCastVote(ctx, input);
+        break;
       case "escalate":
-        return handleEscalate(ctx, input);
+        result = handleEscalate(ctx, input);
+        break;
       case "save_learning":
-        return handleSaveLearning(ctx, input);
+        result = handleSaveLearning(ctx, input);
+        break;
       case "get_learnings":
-        return handleGetLearnings(ctx, input);
+        result = handleGetLearnings(ctx, input);
+        break;
       default:
         return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
     }
+    const latencyMs = Date.now() - start;
+    logger.debug(ctx.teamId, "tool.called", { tool: toolName, agentId: ctx.agentId }, ctx.agentId, latencyMs);
+    return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
@@ -83,6 +100,8 @@ function handleSendMessage(ctx: BusMcpContext, input: Record<string, unknown>): 
     messageType: messageType as "text",
     threadId: input.thread_id as string | undefined,
   });
+
+  getLogger().debug(ctx.teamId, "message.sent", { channel: channelName, messageId: message.id }, ctx.agentId);
 
   return { content: [{ type: "text", text: `Message sent (id: ${message.id})` }] };
 }
@@ -124,6 +143,7 @@ function handleCreateTask(ctx: BusMcpContext, input: Record<string, unknown>): B
   };
 
   const task = createTask(taskData);
+  getLogger().info(ctx.teamId, "task.created", { taskId: task.id, title: task.title }, ctx.agentId);
   return { content: [{ type: "text", text: `Task created: "${task.title}" (id: ${task.id}, status: ${task.status})` }] };
 }
 
@@ -151,6 +171,7 @@ function handleUpdateTask(ctx: BusMcpContext, input: Record<string, unknown>): B
   if (input.assignee_id !== undefined) updates.assigneeId = input.assignee_id as string;
 
   const updated = updateTask(taskId, updates);
+  getLogger().info(ctx.teamId, "task.updated", { taskId, status: updated?.status }, ctx.agentId);
   return { content: [{ type: "text", text: `Task updated: "${updated?.title}" (status: ${updated?.status})` }] };
 }
 
@@ -204,6 +225,7 @@ function handleCallVote(ctx: BusMcpContext, input: Record<string, unknown>): Bus
     messageType: "vote",
   });
 
+  getLogger().info(ctx.teamId, "vote.started", { escalationId: escalation.id, topic }, ctx.agentId);
   return { content: [{ type: "text", text: `Vote started (id: ${escalation.id}). Options: ${options.join(", ")}` }] };
 }
 

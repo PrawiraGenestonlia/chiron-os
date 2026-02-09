@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db } from "../client.js";
+import { db, withTransaction } from "../client.js";
 import { memories } from "../schema/index.js";
 import { generateId, nowISO } from "@chiron-os/shared";
 
@@ -9,18 +9,20 @@ export function createMemory(data: {
   category: string;
   content: string;
 }) {
-  const id = generateId();
-  db.insert(memories)
-    .values({
-      id,
-      teamId: data.teamId,
-      agentId: data.agentId ?? null,
-      category: data.category,
-      content: data.content,
-      createdAt: nowISO(),
-    })
-    .run();
-  return getMemoryById(id)!;
+  return withTransaction(() => {
+    const id = generateId();
+    db.insert(memories)
+      .values({
+        id,
+        teamId: data.teamId,
+        agentId: data.agentId ?? null,
+        category: data.category,
+        content: data.content,
+        createdAt: nowISO(),
+      })
+      .run();
+    return getMemoryById(id)!;
+  });
 }
 
 export function getMemoriesByTeam(teamId: string, category?: string) {

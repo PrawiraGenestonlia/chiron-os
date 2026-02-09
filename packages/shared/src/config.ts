@@ -29,6 +29,10 @@ export interface ChironConfig {
   maxBudgetUsd?: number;
   idleNudgeIntervalMinutes?: number;
   idleNudgeBudgetThreshold?: number;
+  messageQueueMaxSize?: number;
+  messageQueueAggregationThreshold?: number;
+  contextWindowThreshold?: number;
+  authToken?: string;
 }
 
 const DEFAULT_CONFIG: ChironConfig = {

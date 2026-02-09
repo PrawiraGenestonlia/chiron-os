@@ -30,3 +30,12 @@ sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
 
 export const db = drizzle(sqlite, { schema });
+
+/**
+ * Run a function inside a SQLite transaction.
+ * If the function throws, the transaction is rolled back.
+ */
+export function withTransaction<T>(fn: () => T): T {
+  const txn = sqlite.transaction(fn);
+  return txn();
+}

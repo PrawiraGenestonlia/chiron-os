@@ -1,4 +1,4 @@
-import { getTeamById, getPersonaById, getAgentsByTeam, getChannelsByTeam, getMemoriesByTeam } from "@chiron-os/db";
+import { getTeamById, getPersonaById, getAgentsByTeam, getChannelsByTeam, getMemoriesByTeam, getTasksByTeam, getRecentMessagesByTeam } from "@chiron-os/db";
 
 interface PromptContext {
   agentId: string;
@@ -168,4 +168,69 @@ When the team's goal is fully achieved (all tasks done, code working, tests pass
 3. After confirming completion, wait for new instructions or system idle checks. Only respond if a teammate, human, or system sends a new message requiring action.
 ${pmProactiveSection}
 `;
+}
+
+interface ContextRotationContext {
+  agentId: string;
+  agentName: string;
+  teamId: string;
+  personaId: string;
+}
+
+export function buildContextRotationSummary(ctx: ContextRotationContext): string {
+  const team = getTeamById(ctx.teamId);
+  const persona = getPersonaById(ctx.personaId);
+  const tasks = getTasksByTeam(ctx.teamId);
+  const recentMessages = getRecentMessagesByTeam(ctx.teamId, 15);
+  const memories = getMemoriesByTeam(ctx.teamId);
+  const recentLearnings = memories.slice(-10);
+
+  // Categorize tasks
+  const tasksByStatus: Record<string, string[]> = {};
+  const myTasks: string[] = [];
+  for (const t of tasks) {
+    const bucket = tasksByStatus[t.status] ?? [];
+    bucket.push(`${t.title} (${t.priority})`);
+    tasksByStatus[t.status] = bucket;
+    if (t.assigneeId === ctx.agentId) {
+      myTasks.push(`[${t.status}] ${t.title} (id: ${t.id})`);
+    }
+  }
+
+  // Build task board overview
+  const taskBoardLines: string[] = [];
+  for (const [status, items] of Object.entries(tasksByStatus)) {
+    taskBoardLines.push(`  ${status}: ${items.length} tasks — ${items.slice(0, 5).join(", ")}${items.length > 5 ? "..." : ""}`);
+  }
+
+  // Build recent activity
+  const activityLines = recentMessages.map((m) => {
+    const channel = (m as unknown as { channelName?: string }).channelName ?? "unknown";
+    return `  [#${channel}] ${m.authorName ?? m.authorRole}: ${m.content.slice(0, 120)}${m.content.length > 120 ? "..." : ""}`;
+  });
+
+  // Build learnings
+  const learningLines = recentLearnings.map((m) => `  [${m.category}] ${m.content}`);
+
+  const sections = [
+    `[Context Rotation] You are ${ctx.agentName} (${persona?.name ?? "agent"}) on team "${team?.name ?? "unknown"}".`,
+    `Goal: ${team?.goal ?? "No goal set"}`,
+    "",
+    "## Task Board",
+    taskBoardLines.length > 0 ? taskBoardLines.join("\n") : "  No tasks yet.",
+    "",
+    "## Your Tasks",
+    myTasks.length > 0 ? myTasks.map((t) => `  ${t}`).join("\n") : "  No tasks assigned to you.",
+    "",
+    "## Recent Activity",
+    activityLines.length > 0 ? activityLines.join("\n") : "  No recent activity.",
+  ];
+
+  if (learningLines.length > 0) {
+    sections.push("", "## Team Learnings", learningLines.join("\n"));
+  }
+
+  sections.push("", "Resume your work. Do NOT re-introduce yourself. Just pick up where you left off.");
+
+  return sections.join("\n");
 }

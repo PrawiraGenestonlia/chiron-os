@@ -33,6 +33,15 @@ export const IDLE_NUDGE_OBSERVATION_WINDOW_MS = 5 * 60 * 1000;
 export const IDLE_NUDGE_MAX_FRUITLESS = 3;
 export const IDLE_NUDGE_DEFAULT_BUDGET_THRESHOLD = 0.8;
 
+// ── Message Queue ────────────────────────────────────────
+export const MESSAGE_QUEUE_MAX_SIZE = 50;
+export const MESSAGE_QUEUE_AGGREGATION_THRESHOLD = 10;
+export const MESSAGE_QUEUE_KEEP_RECENT = 3;
+export const MESSAGE_QUEUE_CONTENT_TRUNCATE_LENGTH = 100;
+
+// ── Context Window ──────────────────────────────────────
+export const DEFAULT_CONTEXT_WINDOW_THRESHOLD = 150_000;
+
 // ── Message Pagination ────────────────────────────────────
 export const MESSAGES_DEFAULT_LIMIT = 50;
 export const MESSAGES_MAX_LIMIT = 200;

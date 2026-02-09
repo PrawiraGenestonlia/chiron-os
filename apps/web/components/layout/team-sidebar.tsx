@@ -92,6 +92,7 @@ export function TeamSidebar({
       items: [
         { href: `/teams/${teamId}/escalations`, label: "Escalations", icon: "alert", badge: openEscalations || undefined, alert: openEscalations > 0 },
         { href: `/teams/${teamId}/usage`, label: "Usage", icon: "chart" },
+        { href: `/teams/${teamId}/logs`, label: "Logs", icon: "logs" },
         { href: `/teams/${teamId}/files`, label: "Files", icon: "folder" },
       ],
     },
@@ -250,6 +251,12 @@ function NavIcon({ name }: { name: string }) {
           <path d="M6 14V5" />
           <path d="M10 14V7" />
           <path d="M14 14V3" />
+        </svg>
+      );
+    case "logs":
+      return (
+        <svg {...s} viewBox="0 0 16 16">
+          <path d="M3 3h10M3 6h10M3 9h7M3 12h5" />
         </svg>
       );
     case "folder":

@@ -1,5 +1,6 @@
 import { recordTokenUsage, getUsageByTeam, getUsageByAgent, getUsageBreakdown } from "@chiron-os/db";
 import { EventEmitter } from "node:events";
+import { getLogger } from "../logging/logger.js";
 
 export interface UsageEntry {
   agentId: string;
@@ -29,6 +30,15 @@ export class TokenTracker extends EventEmitter {
       costUsd: entry.costUsd,
     });
 
+    const logger = getLogger();
+    logger.debug(entry.teamId, "token.recorded", {
+      agentId: entry.agentId,
+      model: entry.model,
+      inputTokens: entry.inputTokens,
+      outputTokens: entry.outputTokens,
+      costUsd: entry.costUsd,
+    }, entry.agentId);
+
     this.emit("usage", entry);
 
     // Check budget
@@ -36,7 +46,20 @@ export class TokenTracker extends EventEmitter {
       const teamUsage = getUsageByTeam(entry.teamId);
       const totalCost = teamUsage?.totalCostUsd ?? 0;
 
+      // Budget warning at 80%
+      if (totalCost >= this.maxBudgetUsd * 0.8 && totalCost < this.maxBudgetUsd) {
+        logger.warn(entry.teamId, "budget.warning", {
+          totalCost,
+          maxBudget: this.maxBudgetUsd,
+          percentUsed: Math.round((totalCost / this.maxBudgetUsd) * 100),
+        });
+      }
+
       if (totalCost >= this.maxBudgetUsd) {
+        logger.error(entry.teamId, "budget.exceeded", {
+          totalCost,
+          maxBudget: this.maxBudgetUsd,
+        });
         this.emit("budget:exceeded", {
           teamId: entry.teamId,
           totalCost,

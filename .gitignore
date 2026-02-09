@@ -14,6 +14,9 @@ chiron.config.json
 .env.local
 .env.*.local
 
+# Build artifacts
+*.tsbuildinfo
+
 # IDE
 .idea/
 .vscode/

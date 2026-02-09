@@ -1,13 +1,14 @@
 import { getAllTeams, getAgentsByTeam, getTasksByTeam } from "@chiron-os/db";
-import { loadConfig, detectApiKeySource } from "@chiron-os/shared";
+import { loadConfig, detectApiKeySource, probeClaudeCodeAuth } from "@chiron-os/shared";
 import Link from "next/link";
 import { CreateTeamDialog } from "@/components/team/create-team-dialog";
 
 export const dynamic = "force-dynamic";
 
-export default function HomePage() {
+export default async function HomePage() {
   const teams = getAllTeams();
   const config = loadConfig(process.cwd());
+  await probeClaudeCodeAuth();
   const apiKeySource = detectApiKeySource(config);
 
   return (

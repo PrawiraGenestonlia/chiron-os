@@ -11,7 +11,17 @@ import { TokenTracker } from "../tracking/token-tracker.js";
 import { EscalationManager } from "../escalation/escalation-manager.js";
 import { updateAgentStatus } from "@chiron-os/db";
 import type { AgentStatus } from "@chiron-os/shared";
-import { DEFAULT_MODEL, resolveApiKey, loadConfig, isHttpMcpServer } from "@chiron-os/shared";
+import {
+  DEFAULT_MODEL,
+  resolveApiKey,
+  loadConfig,
+  isHttpMcpServer,
+  MESSAGE_QUEUE_MAX_SIZE,
+  MESSAGE_QUEUE_AGGREGATION_THRESHOLD,
+  MESSAGE_QUEUE_KEEP_RECENT,
+  MESSAGE_QUEUE_CONTENT_TRUNCATE_LENGTH,
+  DEFAULT_CONTEXT_WINDOW_THRESHOLD,
+} from "@chiron-os/shared";
 import type { McpServerConfig } from "@chiron-os/shared";
 
 export interface AgentRunnerConfig {
@@ -132,11 +142,25 @@ export class AgentRunner extends EventEmitter {
   private running = false;
   private sessionId: string;
 
+  // Backpressure
+  private queueMaxSize: number;
+  private aggregationThreshold: number;
+
+  // Context rotation
+  private cumulativeInputTokens = 0;
+  private contextWindowThreshold: number;
+  private contextSummary: string | null = null;
+
   constructor(config: AgentRunnerConfig) {
     super();
     this.config = config;
     this.abortController = new AbortController();
     this.sessionId = randomUUID();
+
+    const appConfig = loadConfig(process.cwd());
+    this.queueMaxSize = appConfig.messageQueueMaxSize ?? MESSAGE_QUEUE_MAX_SIZE;
+    this.aggregationThreshold = appConfig.messageQueueAggregationThreshold ?? MESSAGE_QUEUE_AGGREGATION_THRESHOLD;
+    this.contextWindowThreshold = appConfig.contextWindowThreshold ?? DEFAULT_CONTEXT_WINDOW_THRESHOLD;
   }
 
   get agentId(): string {
@@ -145,6 +169,17 @@ export class AgentRunner extends EventEmitter {
 
   get isRunning(): boolean {
     return this.running;
+  }
+
+  get currentInputTokens(): number {
+    return this.cumulativeInputTokens;
+  }
+
+  /**
+   * Set a context summary for rotation — called by LifecycleManager before restart
+   */
+  setContextSummary(summary: string): void {
+    this.contextSummary = summary;
   }
 
   private makeUserMessage(content: string): SDKUserMessage {
@@ -161,9 +196,67 @@ export class AgentRunner extends EventEmitter {
    */
   enqueueMessage(content: string): void {
     this.messageQueue.push(this.makeUserMessage(content));
+    // Evict oldest messages if queue exceeds max size
+    while (this.messageQueue.length > this.queueMaxSize) {
+      this.messageQueue.shift();
+    }
     if (this.messageResolve) {
       this.messageResolve();
       this.messageResolve = null;
+    }
+  }
+
+  /**
+   * Aggregate old messages into a catch-up summary when queue is large
+   */
+  private *aggregateAndYield(): Generator<SDKUserMessage> {
+    const highPriority: SDKUserMessage[] = [];
+    const regular: SDKUserMessage[] = [];
+
+    for (const msg of this.messageQueue) {
+      const content = msg.message.content as string;
+      if (content.includes("[#escalations]") || content.startsWith("[System:")) {
+        highPriority.push(msg);
+      } else {
+        regular.push(msg);
+      }
+    }
+    this.messageQueue = [];
+
+    // Yield high-priority messages individually
+    for (const msg of highPriority) {
+      yield msg;
+    }
+
+    if (regular.length <= MESSAGE_QUEUE_KEEP_RECENT) {
+      // Not enough to summarize, yield individually
+      for (const msg of regular) {
+        yield msg;
+      }
+      return;
+    }
+
+    // Split: old messages → summary, recent → individual
+    const recentStart = regular.length - MESSAGE_QUEUE_KEEP_RECENT;
+    const old = regular.slice(0, recentStart);
+    const recent = regular.slice(recentStart);
+
+    // Build summary of old messages
+    const summaryLines = old.map((msg) => {
+      const content = msg.message.content as string;
+      const truncated = content.length > MESSAGE_QUEUE_CONTENT_TRUNCATE_LENGTH
+        ? content.slice(0, MESSAGE_QUEUE_CONTENT_TRUNCATE_LENGTH) + "..."
+        : content;
+      return `- ${truncated}`;
+    });
+
+    yield this.makeUserMessage(
+      `[Catch-up Summary] While you were busy, ${old.length} messages arrived:\n${summaryLines.join("\n")}`
+    );
+
+    // Yield recent messages individually
+    for (const msg of recent) {
+      yield msg;
     }
   }
 
@@ -173,13 +266,23 @@ export class AgentRunner extends EventEmitter {
   private async *messageStream(): AsyncIterable<SDKUserMessage> {
     const team = await import("@chiron-os/db").then((m) => m.getTeamById(this.config.teamId));
 
-    yield this.makeUserMessage(
-      `You are ${this.config.agentName}. ${team?.goal ? `The team's current goal is: ${team.goal}` : "No goal has been set yet."}\n\nFirst, call list_tasks to see if there are existing tasks. Then read #planning for context. Post a single brief introduction to #general (one sentence max) and immediately begin working on your responsibilities. Do NOT send multiple messages — focus on producing deliverables.`
-    );
+    // If we have a context summary from rotation, use it instead of the standard intro
+    if (this.contextSummary) {
+      yield this.makeUserMessage(this.contextSummary);
+    } else {
+      yield this.makeUserMessage(
+        `You are ${this.config.agentName}. ${team?.goal ? `The team's current goal is: ${team.goal}` : "No goal has been set yet."}\n\nFirst, call list_tasks to see if there are existing tasks. Then read #planning for context. Post a single brief introduction to #general (one sentence max) and immediately begin working on your responsibilities. Do NOT send multiple messages — focus on producing deliverables.`
+      );
+    }
 
     while (!this.abortController.signal.aborted) {
       if (this.messageQueue.length > 0) {
-        yield this.messageQueue.shift()!;
+        // Check if we need to aggregate
+        if (this.messageQueue.length > this.aggregationThreshold) {
+          yield* this.aggregateAndYield();
+        } else {
+          yield this.messageQueue.shift()!;
+        }
       } else {
         await new Promise<void>((resolve) => {
           this.messageResolve = resolve;
@@ -311,6 +414,15 @@ export class AgentRunner extends EventEmitter {
               outputTokens: message.usage.output_tokens ?? 0,
               costUsd: message.total_cost_usd,
             });
+
+            // Track cumulative input tokens for context rotation
+            this.cumulativeInputTokens += message.usage.input_tokens ?? 0;
+            if (this.cumulativeInputTokens >= this.contextWindowThreshold) {
+              this.emit("context:rotation_needed", {
+                agentId: this.config.agentId,
+                cumulativeInputTokens: this.cumulativeInputTokens,
+              });
+            }
           }
 
           if (message.subtype !== "success") {

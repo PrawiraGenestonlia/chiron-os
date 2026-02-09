@@ -1,5 +1,5 @@
 import { eq, desc, and, isNull, lt, like } from "drizzle-orm";
-import { db } from "../client.js";
+import { db, withTransaction } from "../client.js";
 import { messages, channels } from "../schema/index.js";
 import { generateId, nowISO } from "@chiron-os/shared";
 import type { MessageCreate } from "@chiron-os/shared";
@@ -98,20 +98,22 @@ export function searchMessages(
 }
 
 export function createMessage(data: MessageCreate) {
-  const id = generateId();
-  db.insert(messages)
-    .values({
-      id,
-      channelId: data.channelId,
-      authorId: data.authorId ?? null,
-      authorRole: data.authorRole,
-      authorName: data.authorName ?? null,
-      threadId: data.threadId ?? null,
-      content: data.content,
-      messageType: data.messageType,
-      metadata: data.metadata ?? null,
-      createdAt: nowISO(),
-    })
-    .run();
-  return getMessageById(id)!;
+  return withTransaction(() => {
+    const id = generateId();
+    db.insert(messages)
+      .values({
+        id,
+        channelId: data.channelId,
+        authorId: data.authorId ?? null,
+        authorRole: data.authorRole,
+        authorName: data.authorName ?? null,
+        threadId: data.threadId ?? null,
+        content: data.content,
+        messageType: data.messageType,
+        metadata: data.metadata ?? null,
+        createdAt: nowISO(),
+      })
+      .run();
+    return getMessageById(id)!;
+  });
 }
