@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, renameSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
@@ -41,14 +41,11 @@ run("pnpm db:seed");
 
 // ── Config file ──────────────────────────────────────────
 const configPath = join(ROOT, "chiron.config.json");
+const examplePath = join(ROOT, "example.chiron.config.json");
 if (!existsSync(configPath)) {
-  console.log(cyan("3/3") + " Creating template config...");
-  writeFileSync(
-    configPath,
-    JSON.stringify({ defaultModel: "claude-opus-4-6" }, null, 2) + "\n",
-    "utf-8"
-  );
-  console.log(dim(`     Created ${configPath}`));
+  console.log(cyan("3/3") + " Creating config from example...");
+  renameSync(examplePath, configPath);
+  console.log(dim(`     Renamed example.chiron.config.json → chiron.config.json`));
 } else {
   console.log(cyan("3/3") + " Config file already exists " + dim("(skipped)"));
 }

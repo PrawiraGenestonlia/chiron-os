@@ -1,0 +1,22 @@
+{
+  "defaultModel": "claude-opus-4-6",
+  "agentModelOverrides": {},
+  "mcpServers": {
+    "context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "INPUT_API_KEY"
+      }
+    },
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com"
+    },
+    "next-devtools": {
+      "command": "npx",
+      "args": ["-y", "next-devtools-mcp@latest"]
+    }
+  },
+  "idleNudgeIntervalMinutes": 15,
+  "idleNudgeBudgetThreshold": 0.8
+}
