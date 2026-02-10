@@ -96,6 +96,10 @@ lifecycle.on("idle:nudge", (data: { teamId: string; nudgeCount: number; nextNudg
   broadcast(data.teamId, { type: "idle:nudge", data });
 });
 
+lifecycle.on("usage:update", (data: { teamId: string; costUsd: number }) => {
+  broadcast(data.teamId, { type: "usage:update", data });
+});
+
 // Expose managers globally for API routes
 (globalThis as Record<string, unknown>).__chiron_lifecycle = lifecycle;
 (globalThis as Record<string, unknown>).__chiron_broadcast = broadcast;

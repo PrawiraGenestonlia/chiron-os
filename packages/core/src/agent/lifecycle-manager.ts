@@ -52,6 +52,11 @@ export class LifecycleManager extends EventEmitter {
     if (config.maxBudgetUsd) {
       this.tokenTracker.setMaxBudget(config.maxBudgetUsd);
     }
+    // Forward usage events for WebSocket broadcasting
+    this.tokenTracker.on("usage", (entry: { teamId: string; costUsd: number }) => {
+      this.emit("usage:update", entry);
+    });
+
     // Listen for budget exceeded and stop the team
     this.tokenTracker.on("budget:exceeded", (data: { teamId: string; totalCost: number; maxBudget: number }) => {
       console.warn(`Budget exceeded for team ${data.teamId}: $${data.totalCost.toFixed(2)} >= $${data.maxBudget}`);

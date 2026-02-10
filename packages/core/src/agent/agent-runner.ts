@@ -182,6 +182,11 @@ export class AgentRunner extends EventEmitter {
   private contextWindowThreshold: number;
   private contextSummary: string | null = null;
 
+  // Track previous cumulative values from SDK (SDK reports cumulative totals, not per-turn)
+  private prevCostUsd = 0;
+  private prevInputTokens = 0;
+  private prevOutputTokens = 0;
+
   constructor(config: AgentRunnerConfig) {
     super();
     this.config = config;
@@ -489,17 +494,30 @@ export class AgentRunner extends EventEmitter {
 
         if (message.type === "result") {
           if (message.subtype === "success") {
+            // SDK reports cumulative totals across all turns, compute per-turn deltas
+            const cumulativeCost = message.total_cost_usd ?? 0;
+            const cumulativeInput = message.usage.input_tokens ?? 0;
+            const cumulativeOutput = message.usage.output_tokens ?? 0;
+
+            const deltaCost = Math.max(0, cumulativeCost - this.prevCostUsd);
+            const deltaInput = Math.max(0, cumulativeInput - this.prevInputTokens);
+            const deltaOutput = Math.max(0, cumulativeOutput - this.prevOutputTokens);
+
+            this.prevCostUsd = cumulativeCost;
+            this.prevInputTokens = cumulativeInput;
+            this.prevOutputTokens = cumulativeOutput;
+
             this.config.tokenTracker.record({
               agentId: this.config.agentId,
               teamId: this.config.teamId,
               model,
-              inputTokens: message.usage.input_tokens ?? 0,
-              outputTokens: message.usage.output_tokens ?? 0,
-              costUsd: message.total_cost_usd,
+              inputTokens: deltaInput,
+              outputTokens: deltaOutput,
+              costUsd: deltaCost,
             });
 
-            // Track cumulative input tokens for context rotation
-            this.cumulativeInputTokens += message.usage.input_tokens ?? 0;
+            // Track cumulative input tokens for context rotation (SDK value is already cumulative)
+            this.cumulativeInputTokens = cumulativeInput;
             if (this.cumulativeInputTokens >= this.contextWindowThreshold) {
               this.emit("context:rotation_needed", {
                 agentId: this.config.agentId,
