@@ -10,9 +10,10 @@ interface ChannelSidebarProps {
   onSelect: (channelId: string) => void;
   teamId: string;
   onChannelCreated?: () => void;
+  unreadCounts?: Record<string, number>;
 }
 
-export function ChannelSidebar({ channels, activeChannelId, onSelect, teamId, onChannelCreated }: ChannelSidebarProps) {
+export function ChannelSidebar({ channels, activeChannelId, onSelect, teamId, onChannelCreated, unreadCounts }: ChannelSidebarProps) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<ChannelType>("general");
@@ -84,9 +85,7 @@ export function ChannelSidebar({ channels, activeChannelId, onSelect, teamId, on
               style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
             >
               <option value="general">General</option>
-              <option value="planning">Planning</option>
-              <option value="design">Design</option>
-              <option value="engineering">Engineering</option>
+              <option value="agents">Agents</option>
               <option value="escalations">Escalations</option>
               <option value="suggestions">Suggestions</option>
             </select>
@@ -111,19 +110,33 @@ export function ChannelSidebar({ channels, activeChannelId, onSelect, teamId, on
         )}
 
         <div className="space-y-0.5">
-          {channels.map((ch) => (
-            <button
-              key={ch.id}
-              onClick={() => onSelect(ch.id)}
-              className="w-full text-left px-2 py-1.5 rounded text-sm transition-colors"
-              style={{
-                backgroundColor: activeChannelId === ch.id ? "var(--accent)" : "transparent",
-                color: activeChannelId === ch.id ? "var(--accent-foreground)" : "var(--muted-foreground)",
-              }}
-            >
-              <span className="opacity-60">#</span> {ch.name}
-            </button>
-          ))}
+          {channels.map((ch) => {
+            const count = unreadCounts?.[ch.id] ?? 0;
+            return (
+              <button
+                key={ch.id}
+                onClick={() => onSelect(ch.id)}
+                className="w-full text-left px-2 py-1.5 rounded text-sm transition-colors flex items-center justify-between"
+                style={{
+                  backgroundColor: activeChannelId === ch.id ? "var(--accent)" : "transparent",
+                  color: activeChannelId === ch.id ? "var(--accent-foreground)" : "var(--muted-foreground)",
+                  fontWeight: count > 0 ? 600 : undefined,
+                }}
+              >
+                <span>
+                  <span className="opacity-60">#</span> {ch.name}
+                </span>
+                {count > 0 && (
+                  <span
+                    className="inline-flex items-center justify-center text-xs font-medium rounded-full min-w-[1.25rem] h-5 px-1.5"
+                    style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }}
+                  >
+                    {count > 99 ? "99+" : count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

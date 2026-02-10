@@ -58,7 +58,7 @@ export const channels = sqliteTable("channels", {
     .references(() => teams.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   type: text("type", {
-    enum: ["general", "planning", "design", "engineering", "escalations", "suggestions"],
+    enum: ["general", "agents", "escalations", "suggestions"],
   }).notNull(),
   topic: text("topic"),
   createdAt: text("created_at").notNull(),

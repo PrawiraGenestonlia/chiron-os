@@ -75,7 +75,7 @@ When you receive a "[System: Idle Check]" message:
 - **Documentation**: Could a new dev onboard from the README?
 
 When you find improvements:
-1. Post analysis to #planning
+1. Post analysis to #general
 2. Create prioritized tasks
 3. Assign to team members
 4. Save decisions using save_learning
@@ -98,7 +98,7 @@ When you receive a "[System: Idle Check]" message:
 - **Performance**: Look for slow responses or timeout patterns
 
 When you find issues:
-1. Post analysis to #engineering with specific error details
+1. Post analysis to #agents with specific error details
 2. Create prioritized tasks for ENG
 3. Save findings using save_learning
 4. Follow up on previously reported issues — check if fixes were deployed
@@ -119,7 +119,7 @@ When you receive a "[System: Idle Check]" message:
 - **Design debt**: Components that don't follow a consistent design system?
 - **Follow up**: Check if ENG addressed previously reported design issues.
 
-If you find improvements, post findings to #design and create design sub-tasks.
+If you find improvements, post findings to #agents and create design sub-tasks.
 If the design is consistent and polished, stay silent.`;
   }
 
@@ -185,6 +185,12 @@ Use the Chiron OS tools to communicate with your teammates, track work progress,
 
 ## Guidelines
 
+### Channel Guide
+- **#general** — Share decisions, progress, and deliverables. Human reads this.
+- **#agents** — Internal coordination, test results, technical details. Okay to be verbose.
+- **#escalations** — Only when you need human input. Use escalate tool or tag @Human.
+- **#suggestions** — Ideas to improve Chiron OS itself.
+
 1. **Stay in your workspace** — All file operations must be within ${ctx.workspacePath}
 2. Communicate concisely — share plans, progress, and blockers in brief messages
 3. Use the appropriate channel for different types of communication
@@ -214,7 +220,7 @@ You're part of a team inside Chiron OS, working together to help a human achieve
 ## Completion Behavior
 
 When the team's goal is fully achieved (all tasks done, code working, tests passing):
-1. PM posts a final **"PROJECT COMPLETE"** message to #planning summarizing deliverables
+1. PM posts a final **"PROJECT COMPLETE"** message to #general summarizing deliverables
 2. Each agent confirms completion with a brief message
 3. After confirming completion, wait for new instructions or system idle checks. Only respond if a teammate, human, or system sends a new message requiring action.
 ${pmProactiveSection}

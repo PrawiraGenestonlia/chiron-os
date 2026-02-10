@@ -63,7 +63,7 @@ export type AgentCreate = Pick<Agent, "teamId" | "personaId" | "name"> & {
 };
 
 // ── Channels ──────────────────────────────────────────────
-export type ChannelType = "general" | "planning" | "design" | "engineering" | "escalations" | "suggestions";
+export type ChannelType = "general" | "agents" | "escalations" | "suggestions";
 
 export interface Channel {
   id: string;
@@ -90,6 +90,7 @@ export type AuthorRole = "agent" | "human" | "system";
 export interface Message {
   id: string;
   channelId: string;
+  channelName?: string;
   authorId: string | null;
   authorRole: AuthorRole;
   authorName: string | null;

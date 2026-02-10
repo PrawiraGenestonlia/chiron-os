@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { Channel, Message, WSServerEvent } from "@chiron-os/shared";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useMessages } from "@/hooks/use-messages";
@@ -14,14 +14,23 @@ interface MessagesViewProps {
   channels: Channel[];
 }
 
+function getDefaultChannelId(channels: Channel[]): string | null {
+  const agents = channels.find((c) => c.name === "agents");
+  if (agents) return agents.id;
+  return channels[0]?.id ?? null;
+}
+
 export function MessagesView({ teamId, channels: initialChannels }: MessagesViewProps) {
   const [channelList, setChannelList] = useState<Channel[]>(initialChannels);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(
-    initialChannels[0]?.id ?? null
+    getDefaultChannelId(initialChannels)
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Message[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const activeChannelIdRef = useRef(activeChannelId);
+  activeChannelIdRef.current = activeChannelId;
 
   const activeChannel = channelList.find((c) => c.id === activeChannelId);
 
@@ -33,11 +42,35 @@ export function MessagesView({ teamId, channels: initialChannels }: MessagesView
   const handleWsMessage = useCallback(
     (event: WSServerEvent) => {
       handleWsEvent(event);
+
+      // Track unread counts for non-active channels
+      if (event.type === "message:new") {
+        const msg = event.data;
+        if (msg.channelId !== activeChannelIdRef.current) {
+          setUnreadCounts((prev) => ({
+            ...prev,
+            [msg.channelId]: (prev[msg.channelId] ?? 0) + 1,
+          }));
+        }
+      }
     },
     [handleWsEvent]
   );
 
   const { connected } = useWebSocket({ teamId, onMessage: handleWsMessage });
+
+  const handleSelectChannel = useCallback((id: string) => {
+    setActiveChannelId(id);
+    setSearchResults(null);
+    setSearchQuery("");
+    // Clear unread count for newly selected channel
+    setUnreadCounts((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
 
   const refreshChannels = useCallback(async () => {
     try {
@@ -83,9 +116,10 @@ export function MessagesView({ teamId, channels: initialChannels }: MessagesView
       <ChannelSidebar
         channels={channelList}
         activeChannelId={activeChannelId}
-        onSelect={(id) => { setActiveChannelId(id); setSearchResults(null); setSearchQuery(""); }}
+        onSelect={handleSelectChannel}
         teamId={teamId}
         onChannelCreated={refreshChannels}
+        unreadCounts={unreadCounts}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
