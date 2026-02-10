@@ -24,9 +24,9 @@ pnpm db:seed    # Seed default personas
 
 ## Key Files
 
-- `chiron.config.json` — Local config (API key, MCP servers, model settings). Gitignored.
-- `.chiron/chiron.db` — SQLite database. Gitignored.
-- `.chiron/workspaces/` — Team workspace directories. Gitignored.
+- `~/.chiron/config.json` — Local config (API key, MCP servers, model settings).
+- `~/.chiron/chiron.db` — SQLite database.
+- `~/.chiron/workspaces/` — Team workspace directories.
 
 ## Conventions
 

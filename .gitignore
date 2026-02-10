@@ -3,12 +3,6 @@ dist/
 .next/
 .turbo/
 
-# Runtime data
-.chiron/
-
-# Config with secrets
-chiron.config.json
-
 # Environment
 .env
 .env.local

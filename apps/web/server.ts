@@ -33,7 +33,7 @@ function broadcast(teamId: string, event: unknown) {
 }
 
 // Generate or load auth token
-const config = loadConfig(process.cwd());
+const config = loadConfig();
 const authToken = config.authToken ?? randomBytes(32).toString("hex");
 (globalThis as Record<string, unknown>).__chiron_auth_token = authToken;
 

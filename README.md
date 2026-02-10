@@ -36,8 +36,8 @@ The install script checks prerequisites (git, Node.js, pnpm), installs anything 
 If you have **Claude Code** installed and authenticated, you're ready to go -- no API key needed. Otherwise, configure one:
 
 ```bash
-# Option A: Edit the generated config file
-echo '{ "apiKey": "sk-ant-your-key-here" }' > chiron.config.json
+# Option A: Edit the config file
+echo '{ "apiKey": "sk-ant-your-key-here" }' > ~/.chiron/config.json
 
 # Option B: Use an environment variable
 export ANTHROPIC_API_KEY="sk-ant-your-key-here"
@@ -74,11 +74,11 @@ On the team overview page, click **Start Team**. Agents will begin introducing t
 
 ### 5. Review Deliverables
 
-Agents write code and files to the team's workspace directory at `.chiron/workspaces/<team-id>/`. When the PM posts "PROJECT COMPLETE", the team's work is done.
+Agents write code and files to the team's workspace directory at `~/.chiron/workspaces/<team-id>/`. When the PM posts "PROJECT COMPLETE", the team's work is done.
 
 ## Configuration
 
-Chiron OS uses `chiron.config.json` in the project root (gitignored):
+Chiron OS uses `~/.chiron/config.json`:
 
 ```json
 {

@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { homedir } from "node:os";
 
 export interface McpStdioServerConfig {
@@ -42,36 +42,28 @@ const DEFAULT_CONFIG: ChironConfig = {
   mcpServers: {},
 };
 
-const CONFIG_FILENAME = "chiron.config.json";
+const CONFIG_FILENAME = "config.json";
 
 /**
- * Find the path to chiron.config.json by walking up from startDir.
- * Returns the full path if found, or a default path at startDir if not.
+ * Get the Chiron data directory (~/.chiron).
  */
-export function findConfigPath(startDir: string): string {
-  let dir = startDir;
-  while (true) {
-    const configPath = join(dir, CONFIG_FILENAME);
-    if (existsSync(configPath)) return configPath;
-    const parent = dirname(dir);
-    if (parent === dir) return join(startDir, CONFIG_FILENAME);
-    dir = parent;
-  }
+export function getChironDir(): string {
+  return join(homedir(), ".chiron");
 }
 
-export function loadConfig(projectRoot: string): ChironConfig {
-  // Walk up from projectRoot to find chiron.config.json
-  let dir = projectRoot;
-  while (true) {
-    const configPath = join(dir, CONFIG_FILENAME);
-    if (existsSync(configPath)) {
-      const raw = readFileSync(configPath, "utf-8");
-      const parsed = JSON.parse(raw) as Partial<ChironConfig>;
-      return { ...DEFAULT_CONFIG, ...parsed };
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break; // reached root
-    dir = parent;
+/**
+ * Get the path to ~/.chiron/config.json.
+ */
+export function findConfigPath(): string {
+  return join(getChironDir(), CONFIG_FILENAME);
+}
+
+export function loadConfig(): ChironConfig {
+  const configPath = join(getChironDir(), CONFIG_FILENAME);
+  if (existsSync(configPath)) {
+    const raw = readFileSync(configPath, "utf-8");
+    const parsed = JSON.parse(raw) as Partial<ChironConfig>;
+    return { ...DEFAULT_CONFIG, ...parsed };
   }
 
   return { ...DEFAULT_CONFIG };

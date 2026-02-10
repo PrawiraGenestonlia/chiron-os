@@ -101,7 +101,7 @@ export default function ConfigPage() {
     setConnectingServer(serverName);
     setError(null);
     try {
-      // Auto-save config first so the server entry persists to chiron.config.json
+      // Auto-save config first so the server entry persists to ~/.chiron/config.json
       const saveRes = await fetch("/api/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

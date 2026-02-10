@@ -1,27 +1,12 @@
 import { existsSync, realpathSync } from "node:fs";
 import { join, dirname, resolve, normalize } from "node:path";
-
-/**
- * Find the project root by walking up to find .chiron/ or chiron.config.json
- */
-function findProjectRoot(): string {
-  let dir = process.cwd();
-  while (true) {
-    if (existsSync(join(dir, ".chiron")) || existsSync(join(dir, "chiron.config.json"))) {
-      return dir;
-    }
-    const parent = dirname(dir);
-    if (parent === dir) return process.cwd();
-    dir = parent;
-  }
-}
+import { getChironDir } from "@chiron-os/shared";
 
 /**
  * Get the absolute workspace path for a team.
  */
 export function getWorkspacePath(teamId: string): string {
-  const root = findProjectRoot();
-  return join(root, ".chiron", "workspaces", teamId);
+  return join(getChironDir(), "workspaces", teamId);
 }
 
 /**

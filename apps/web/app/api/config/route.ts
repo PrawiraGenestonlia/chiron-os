@@ -3,8 +3,8 @@ import { loadConfig, findConfigPath } from "@chiron-os/shared";
 import { writeFileSync } from "node:fs";
 
 export async function GET() {
-  const config = loadConfig(process.cwd());
-  const configPath = findConfigPath(process.cwd());
+  const config = loadConfig();
+  const configPath = findConfigPath();
 
   // Return full config including API key (masked) for the UI
   return NextResponse.json({
@@ -16,7 +16,7 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   const body = await request.json();
-  const configPath = findConfigPath(process.cwd());
+  const configPath = findConfigPath();
 
   // Validate mcpServers — stdio needs command, HTTP needs url
   if (body.mcpServers && typeof body.mcpServers === "object") {

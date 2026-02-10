@@ -1,22 +1,11 @@
 import Database, { type Database as DatabaseType } from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { mkdirSync, existsSync } from "node:fs";
+import { getChironDir } from "@chiron-os/shared";
 import * as schema from "./schema/index.js";
 
-function findProjectRoot(startDir: string): string {
-  let dir = startDir;
-  while (dir !== dirname(dir)) {
-    if (existsSync(join(dir, "pnpm-workspace.yaml"))) {
-      return dir;
-    }
-    dir = dirname(dir);
-  }
-  return startDir;
-}
-
-const PROJECT_ROOT = findProjectRoot(process.cwd());
-const DB_DIR = join(PROJECT_ROOT, ".chiron");
+const DB_DIR = getChironDir();
 const DB_PATH = join(DB_DIR, "chiron.db");
 
 if (!existsSync(DB_DIR)) {

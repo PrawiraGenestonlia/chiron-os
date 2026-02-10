@@ -193,7 +193,7 @@ export class AgentRunner extends EventEmitter {
     this.abortController = new AbortController();
     this.sessionId = randomUUID();
 
-    const appConfig = loadConfig(process.cwd());
+    const appConfig = loadConfig();
     this.queueMaxSize = appConfig.messageQueueMaxSize ?? MESSAGE_QUEUE_MAX_SIZE;
     this.aggregationThreshold = appConfig.messageQueueAggregationThreshold ?? MESSAGE_QUEUE_AGGREGATION_THRESHOLD;
     this.contextWindowThreshold = appConfig.contextWindowThreshold ?? DEFAULT_CONTEXT_WINDOW_THRESHOLD;
@@ -339,8 +339,7 @@ export class AgentRunner extends EventEmitter {
     if (this.running) return;
     this.running = true;
 
-    const projectRoot = process.cwd();
-    const config = loadConfig(projectRoot);
+    const config = loadConfig();
     const apiKey = resolveApiKey(config);
     const model = this.config.model ?? config.defaultModel ?? DEFAULT_MODEL;
 

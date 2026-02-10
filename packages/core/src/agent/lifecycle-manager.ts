@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
-import { mkdirSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { AgentRunner, type AgentRunnerConfig } from "./agent-runner.js";
 import { buildContextRotationSummary } from "./prompt-builder.js";
 import { IdleMonitor } from "./idle-monitor.js";
@@ -18,6 +18,7 @@ import {
 import { EscalationManager } from "../escalation/escalation-manager.js";
 import {
   loadConfig,
+  getChironDir,
   AGENT_MAX_RESTART_ATTEMPTS,
   AGENT_RESTART_BACKOFF_BASE_MS,
   AGENT_RESTART_BACKOFF_MAX_MS,
@@ -48,7 +49,7 @@ export class LifecycleManager extends EventEmitter {
   constructor() {
     super();
     // Wire budget config
-    const config = loadConfig(process.cwd());
+    const config = loadConfig();
     if (config.maxBudgetUsd) {
       this.tokenTracker.setMaxBudget(config.maxBudgetUsd);
     }
@@ -73,26 +74,10 @@ export class LifecycleManager extends EventEmitter {
   }
 
   /**
-   * Find the project root by walking up to find .chiron/ or chiron.config.json
-   */
-  private findProjectRoot(): string {
-    let dir = process.cwd();
-    while (true) {
-      if (existsSync(join(dir, ".chiron")) || existsSync(join(dir, "chiron.config.json"))) {
-        return dir;
-      }
-      const parent = dirname(dir);
-      if (parent === dir) return process.cwd();
-      dir = parent;
-    }
-  }
-
-  /**
    * Get the workspace directory for a team. Creates it if it doesn't exist.
    */
   private ensureWorkspace(teamId: string): string {
-    const root = this.findProjectRoot();
-    const workspaceDir = join(root, ".chiron", "workspaces", teamId);
+    const workspaceDir = join(getChironDir(), "workspaces", teamId);
     mkdirSync(workspaceDir, { recursive: true });
     return workspaceDir;
   }
@@ -332,7 +317,7 @@ export class LifecycleManager extends EventEmitter {
     logger.info(teamId, "team.started", { agentCount: agents.length });
 
     // Start idle monitor if configured
-    const config = loadConfig(process.cwd());
+    const config = loadConfig();
     const intervalMinutes = config.idleNudgeIntervalMinutes ?? 15;
     const intervalMs = intervalMinutes > 0
       ? intervalMinutes * 60 * 1000

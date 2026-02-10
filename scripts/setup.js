@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 import { execSync } from "node:child_process";
-import { existsSync, renameSync } from "node:fs";
+import { existsSync, copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 
@@ -40,21 +41,27 @@ console.log(cyan("2/3") + " Seeding default personas...");
 run("pnpm db:seed");
 
 // ── Config file ──────────────────────────────────────────
-const configPath = join(ROOT, "chiron.config.json");
+const CHIRON_DIR = join(homedir(), ".chiron");
+const configPath = join(CHIRON_DIR, "config.json");
 const examplePath = join(ROOT, "example.chiron.config.json");
+
+if (!existsSync(CHIRON_DIR)) {
+  mkdirSync(CHIRON_DIR, { recursive: true });
+}
+
 if (!existsSync(configPath)) {
   console.log(cyan("3/3") + " Creating config from example...");
-  renameSync(examplePath, configPath);
-  console.log(dim(`     Renamed example.chiron.config.json → chiron.config.json`));
+  copyFileSync(examplePath, configPath);
+  console.log(dim(`     Copied example.chiron.config.json → ~/.chiron/config.json`));
 } else {
-  console.log(cyan("3/3") + " Config file already exists " + dim("(skipped)"));
+  console.log(cyan("3/3") + " Config already exists " + dim("(skipped)"));
 }
 
 // ── Done ─────────────────────────────────────────────────
 console.log(green("\nSetup complete!\n"));
 console.log(bold("Next steps:\n"));
 console.log(`  ${yellow("1.")} Configure your API key (pick one):`);
-console.log(dim(`     echo '{ "apiKey": "sk-ant-..." }' > chiron.config.json`));
+console.log(dim(`     echo '{ "apiKey": "sk-ant-..." }' > ~/.chiron/config.json`));
 console.log(dim(`     export ANTHROPIC_API_KEY="sk-ant-..."`));
 console.log(dim(`     (or install Claude Code for automatic auth)\n`));
 console.log(`  ${yellow("2.")} Start the dev server:`);

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const teams = getAllTeams();
-  const config = loadConfig(process.cwd());
+  const config = loadConfig();
   await probeClaudeCodeAuth();
   const apiKeySource = detectApiKeySource(config);
 

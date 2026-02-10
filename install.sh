@@ -15,13 +15,14 @@ cd "$SCRIPT_DIR"
 printf "\n%s\n\n" "$(bold ">_ Chiron OS Installer")"
 
 # ── Check existing installation ───────────────────────────
-if [ -f ".chiron/chiron.db" ]; then
+CHIRON_DIR="$HOME/.chiron"
+if [ -f "$CHIRON_DIR/chiron.db" ]; then
   printf "%s Chiron OS is already installed.\n" "$(yellow "!")"
   printf "  Reset and reinstall? This will delete the database and config. (y/N) "
   read -r answer
   if [[ "$answer" =~ ^[Yy]$ ]]; then
     printf "  Resetting...\n"
-    rm -rf .chiron chiron.config.json
+    rm -rf "$CHIRON_DIR"
   else
     printf "\n  Already installed. Run %s to start.\n\n" "$(cyan "pnpm dev")"
     exit 0
@@ -113,7 +114,7 @@ printf "%s\n\n" "$(bold "Next steps:")"
 printf "  %s If you have Claude Code installed and authenticated, you're all set!\n" "$(yellow "1.")"
 printf "     %s\n\n" "$(dim "(free — no API key needed)")"
 printf "  %s Otherwise, configure an API key:\n" "$(yellow "2.")"
-printf "     %s\n" "$(dim "Edit chiron.config.json and add: \"apiKey\": \"sk-ant-...\"")"
+printf "     %s\n" "$(dim "Edit ~/.chiron/config.json and add: \"apiKey\": \"sk-ant-...\"")"
 printf "     %s\n\n" "$(dim "Or: export ANTHROPIC_API_KEY=\"sk-ant-...\"")"
 printf "  %s Start the dev server:\n" "$(yellow "3.")"
 printf "     %s\n\n" "$(dim "pnpm dev")"
