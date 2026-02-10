@@ -150,7 +150,18 @@ for (const persona of DEFAULT_PERSONAS) {
       .run();
     console.log(`Seeded persona: ${persona.name}`);
   } else {
-    console.log(`Persona already exists: ${persona.name}`);
+    db.update(personas)
+      .set({
+        name: persona.name,
+        description: persona.description,
+        basePrompt: persona.basePrompt,
+        icon: persona.icon,
+        color: persona.color,
+        updatedAt: now,
+      })
+      .where(eq(personas.shortCode, persona.shortCode))
+      .run();
+    console.log(`Updated persona: ${persona.name}`);
   }
 }
 

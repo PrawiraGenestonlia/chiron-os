@@ -16,7 +16,8 @@ export async function POST(_request: NextRequest, context: RouteContext) {
   try {
     const lifecycle = getLifecycle();
     await lifecycle.startTeam(teamId);
-    return NextResponse.json({ ok: true, status: "running" });
+    const runtime = lifecycle.getTeamRuntimeInfo(teamId);
+    return NextResponse.json({ ok: true, status: "running", ...runtime });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

@@ -9,6 +9,7 @@ interface LifecycleHandle {
   restartAgent(agentId: string): Promise<void>;
   sendHumanMessage(teamId: string, channelName: string, content: string): void;
   getTeamAgentStatuses(teamId: string): Array<{ agentId: string; status: string; running: boolean }>;
+  getTeamRuntimeInfo(teamId: string): { startedAt: string | null; maxRuntimeMinutes: number | null };
   shutdown(): void;
 }
 

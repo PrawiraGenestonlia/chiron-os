@@ -88,6 +88,16 @@ export async function PUT(request: NextRequest) {
     }
   }
 
+  // Validate maxRuntimeMinutes if present
+  if (body.maxRuntimeMinutes !== undefined && body.maxRuntimeMinutes !== null) {
+    if (typeof body.maxRuntimeMinutes !== "number" || body.maxRuntimeMinutes < 0) {
+      return NextResponse.json(
+        { error: "maxRuntimeMinutes must be a number >= 0" },
+        { status: 400 }
+      );
+    }
+  }
+
   // Write the full config
   const toSave = {
     apiKey: body.apiKey || undefined,
@@ -97,6 +107,7 @@ export async function PUT(request: NextRequest) {
     maxBudgetUsd: body.maxBudgetUsd || undefined,
     idleNudgeIntervalMinutes: body.idleNudgeIntervalMinutes ?? undefined,
     idleNudgeBudgetThreshold: body.idleNudgeBudgetThreshold ?? undefined,
+    maxRuntimeMinutes: body.maxRuntimeMinutes ?? undefined,
   };
 
   // Remove undefined keys

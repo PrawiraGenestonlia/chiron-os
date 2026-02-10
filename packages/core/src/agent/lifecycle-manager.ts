@@ -14,7 +14,6 @@ import {
   updateTeam,
   updateAgentStatus,
   createAgent,
-  getPersonaById,
 } from "@chiron-os/db";
 import { EscalationManager } from "../escalation/escalation-manager.js";
 import {
@@ -38,6 +37,9 @@ export class LifecycleManager extends EventEmitter {
   private agents = new Map<string, AgentEntry>();
   private buses = new Map<string, MessageBus>();
   private idleMonitors = new Map<string, IdleMonitor>();
+  private runtimeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private teamStartedAt = new Map<string, string>();
+  private teamMaxRuntime = new Map<string, number>();
   private tokenTracker = new TokenTracker();
   private escalationManager?: EscalationManager;
   private broadcastFn?: (teamId: string, event: unknown) => void;
@@ -311,6 +313,9 @@ export class LifecycleManager extends EventEmitter {
     const team = getTeamById(teamId);
     if (!team) throw new Error(`Team ${teamId} not found`);
 
+    const startedAt = new Date().toISOString();
+    this.teamStartedAt.set(teamId, startedAt);
+
     updateTeam(teamId, { status: "running" });
 
     const agents = getAgentsByTeam(teamId);
@@ -339,31 +344,17 @@ export class LifecycleManager extends EventEmitter {
         tokenTracker: this.tokenTracker,
         maxBudgetUsd: config.maxBudgetUsd,
         budgetThreshold: config.idleNudgeBudgetThreshold ?? IDLE_NUDGE_DEFAULT_BUDGET_THRESHOLD,
-        getNudgeTarget: () => {
-          // Priority: PM > PD > ENG (first running agent)
+        getNudgeTarget: (nudgeCount: number) => {
           const teamAgents = getAgentsByTeam(teamId);
-          const priority = ["pm", "pd", "eng"];
-
-          for (const code of priority) {
-            for (const a of teamAgents) {
-              const entry = this.agents.get(a.id);
-              if (!entry?.runner.isRunning) continue;
-              const persona = getPersonaById(a.personaId);
-              if (persona?.shortCode === code) {
-                return { agentId: a.id, runner: entry.runner };
-              }
-            }
-          }
-
-          // Fallback: any running agent
-          for (const a of teamAgents) {
+          const running = teamAgents.filter((a) => {
             const entry = this.agents.get(a.id);
-            if (entry?.runner.isRunning) {
-              return { agentId: a.id, runner: entry.runner };
-            }
-          }
-
-          return null;
+            return entry?.runner.isRunning;
+          });
+          if (running.length === 0) return null;
+          const index = nudgeCount % running.length;
+          const a = running[index];
+          const entry = this.agents.get(a.id)!;
+          return { agentId: a.id, runner: entry.runner };
         },
       });
 
@@ -375,7 +366,19 @@ export class LifecycleManager extends EventEmitter {
       monitor.start();
     }
 
-    this.emit("team:status", { teamId, status: "running" });
+    // Start max runtime timer
+    const maxRuntimeMinutes = config.maxRuntimeMinutes ?? 180; // default 3 hours
+    this.teamMaxRuntime.set(teamId, maxRuntimeMinutes);
+    if (maxRuntimeMinutes > 0) {
+      const timer = setTimeout(() => {
+        logger.info(teamId, "team.max_runtime_reached", { maxRuntimeMinutes });
+        this.stopTeam(teamId);
+        this.emit("team:status", { teamId, status: "stopped", reason: "max_runtime" });
+      }, maxRuntimeMinutes * 60 * 1000);
+      this.runtimeTimers.set(teamId, timer);
+    }
+
+    this.emit("team:status", { teamId, status: "running", startedAt, maxRuntimeMinutes });
   }
 
   /**
@@ -383,6 +386,15 @@ export class LifecycleManager extends EventEmitter {
    */
   stopTeam(teamId: string): void {
     const logger = getLogger();
+
+    // Clear runtime tracking
+    this.teamStartedAt.delete(teamId);
+    this.teamMaxRuntime.delete(teamId);
+    const runtimeTimer = this.runtimeTimers.get(teamId);
+    if (runtimeTimer) {
+      clearTimeout(runtimeTimer);
+      this.runtimeTimers.delete(teamId);
+    }
 
     // Stop idle monitor
     const monitor = this.idleMonitors.get(teamId);
@@ -435,9 +447,25 @@ export class LifecycleManager extends EventEmitter {
   }
 
   /**
+   * Get runtime info for a team (startedAt, maxRuntimeMinutes)
+   */
+  getTeamRuntimeInfo(teamId: string): { startedAt: string | null; maxRuntimeMinutes: number | null } {
+    return {
+      startedAt: this.teamStartedAt.get(teamId) ?? null,
+      maxRuntimeMinutes: this.teamMaxRuntime.get(teamId) ?? null,
+    };
+  }
+
+  /**
    * Shut down everything
    */
   shutdown(): void {
+    // Clear all runtime timers
+    for (const [, timer] of this.runtimeTimers) {
+      clearTimeout(timer);
+    }
+    this.runtimeTimers.clear();
+
     // Stop all idle monitors
     for (const [, monitor] of this.idleMonitors) {
       monitor.stop();

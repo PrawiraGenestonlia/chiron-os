@@ -13,26 +13,21 @@ export interface IdleMonitorConfig {
   tokenTracker: TokenTracker;
   maxBudgetUsd?: number;
   budgetThreshold: number;
-  getNudgeTarget: () => { agentId: string; runner: AgentRunner } | null;
+  getNudgeTarget: (nudgeCount: number) => { agentId: string; runner: AgentRunner } | null;
 }
 
 export type IdleMonitorStatus = "active" | "backed_off" | "hibernating";
 
-const NUDGE_MESSAGE = `[System: Idle Check] The team has been idle. Act like a real PM — don't wait for instructions.
+const NUDGE_MESSAGE = `[System: Idle Check] The team has been idle. Review the project and take action appropriate to your role.
 
-1. Review the project: call list_tasks, read workspace files, check what's been built
-2. Think about what a real product team would do next:
-   - What features would make users love this product?
-   - What's the UX like? Are there rough edges to polish?
-   - Is the code well-tested? Would a real team ship this as-is?
-   - Is the documentation clear enough for a new developer?
-   - Are there obvious improvements that a user would expect?
-3. If you have access to external MCP tools (analytics, etc.), use them to understand usage patterns
-4. Save any important insights using save_learning for the team's future reference
-5. If you identify meaningful improvements, create tasks in #planning and coordinate the team
-6. If the product is genuinely complete and polished, stay silent
+1. Check the project: call list_tasks, read workspace files, review what's been built
+2. Refer to your "Proactive" guidelines for role-specific actions
+3. If you have external MCP tools, use them for insights relevant to your role
+4. Save important findings using save_learning
+5. If you identify improvements, take action per your role
+6. If everything in your area is complete and polished, stay silent
 
-Be a proactive PM — propose features, drive quality, iterate on the product. But don't create busywork or burn tokens on trivial changes.`;
+Take initiative within your role boundaries. Don't create busywork.`;
 
 export class IdleMonitor extends EventEmitter {
   private config: IdleMonitorConfig;
@@ -154,7 +149,7 @@ export class IdleMonitor extends EventEmitter {
     }
 
     // Find a target agent to nudge
-    const target = this.config.getNudgeTarget();
+    const target = this.config.getNudgeTarget(this.nudgeCount);
     if (!target) {
       // No running agents — reschedule
       this.scheduleIdleCheck();

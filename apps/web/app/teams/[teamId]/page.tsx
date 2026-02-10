@@ -9,6 +9,7 @@ import {
 } from "@chiron-os/db";
 import { notFound } from "next/navigation";
 import { TeamOverview } from "@/components/team/team-overview";
+import { getLifecycle } from "@/lib/lifecycle";
 import type { Agent, Task, Escalation } from "@chiron-os/shared";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,15 @@ export default async function TeamPage({ params }: PageProps) {
     return { ...agent, personaShortCode: persona?.shortCode };
   });
 
+  // Get runtime info if team is running
+  let runtimeInfo: { startedAt: string | null; maxRuntimeMinutes: number | null } = { startedAt: null, maxRuntimeMinutes: null };
+  try {
+    const lifecycle = getLifecycle();
+    runtimeInfo = lifecycle.getTeamRuntimeInfo(teamId);
+  } catch {
+    // Lifecycle not available (build time or not started)
+  }
+
   return (
     <TeamOverview
       teamId={teamId}
@@ -49,6 +59,8 @@ export default async function TeamPage({ params }: PageProps) {
       initialEscalations={escalations}
       initialCost={usage?.totalCostUsd ?? 0}
       initialMessages={recentMessages}
+      initialStartedAt={runtimeInfo.startedAt}
+      initialMaxRuntimeMinutes={runtimeInfo.maxRuntimeMinutes}
     />
   );
 }

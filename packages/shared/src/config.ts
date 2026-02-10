@@ -32,6 +32,7 @@ export interface ChironConfig {
   messageQueueMaxSize?: number;
   messageQueueAggregationThreshold?: number;
   contextWindowThreshold?: number;
+  maxRuntimeMinutes?: number;
   authToken?: string;
 }
 

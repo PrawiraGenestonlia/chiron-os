@@ -302,7 +302,7 @@ export class AgentRunner extends EventEmitter {
       yield this.makeUserMessage(this.contextSummary);
     } else {
       yield this.makeUserMessage(
-        `You are ${this.config.agentName}. ${team?.goal ? `The team's current goal is: ${team.goal}` : "No goal has been set yet."}\n\nFirst, call list_tasks to see if there are existing tasks. Then read #planning for context. Post a single brief introduction to #general (one sentence max) and immediately begin working on your responsibilities. Do NOT send multiple messages — focus on producing deliverables.`
+        `You are ${this.config.agentName} on team "${team?.name ?? "unknown"}". ${team?.goal ? `The team's goal is: ${team.goal}` : "No goal has been set yet — wait for the human to set one."}\n\nGet up to speed: call list_tasks and read #planning for context. Then start contributing — post a brief message to #general about what you'll work on first, and get to it.`
       );
     }
 

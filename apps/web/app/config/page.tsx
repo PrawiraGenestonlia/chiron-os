@@ -25,6 +25,7 @@ interface Config {
   maxBudgetUsd?: number;
   idleNudgeIntervalMinutes?: number;
   idleNudgeBudgetThreshold?: number;
+  maxRuntimeMinutes?: number;
   _configPath?: string;
 }
 
@@ -112,6 +113,7 @@ export default function ConfigPage() {
           maxBudgetUsd: config.maxBudgetUsd,
           idleNudgeIntervalMinutes: config.idleNudgeIntervalMinutes,
           idleNudgeBudgetThreshold: config.idleNudgeBudgetThreshold,
+          maxRuntimeMinutes: config.maxRuntimeMinutes,
         }),
       });
       if (!saveRes.ok) {
@@ -165,6 +167,7 @@ export default function ConfigPage() {
           maxBudgetUsd: config.maxBudgetUsd,
           idleNudgeIntervalMinutes: config.idleNudgeIntervalMinutes,
           idleNudgeBudgetThreshold: config.idleNudgeBudgetThreshold,
+          maxRuntimeMinutes: config.maxRuntimeMinutes,
         }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -396,6 +399,34 @@ export default function ConfigPage() {
               }}
             />
             <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>USD</span>
+          </div>
+        </Section>
+
+        {/* Max Runtime */}
+        <Section title="Max Runtime" description="Automatically stop teams after a set duration to prevent runaway sessions. Set to 0 to disable.">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={config.maxRuntimeMinutes ?? 180}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  maxRuntimeMinutes: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                })
+              }
+              className="w-24 px-3 py-2 rounded-md border font-mono text-sm focus:outline-none focus:ring-1"
+              style={{
+                backgroundColor: "var(--background)",
+                borderColor: "var(--border)",
+                color: "var(--foreground)",
+              }}
+            />
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>minutes</span>
+            <span className="text-xs ml-2" style={{ color: "var(--muted-foreground)" }}>
+              ({Math.floor((config.maxRuntimeMinutes ?? 180) / 60)}h {(config.maxRuntimeMinutes ?? 180) % 60}m)
+            </span>
           </div>
         </Section>
 

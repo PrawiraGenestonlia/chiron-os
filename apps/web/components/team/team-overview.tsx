@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { Agent, AgentStatus, Task, Escalation, Message, WSServerEvent } from "@chiron-os/shared";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { AgentActivityCard, useStreamBuffers } from "./agent-activity-card";
@@ -32,6 +32,8 @@ interface TeamOverviewProps {
   initialEscalations: Escalation[];
   initialCost: number;
   initialMessages: MessageWithChannel[];
+  initialStartedAt?: string | null;
+  initialMaxRuntimeMinutes?: number | null;
 }
 
 type IdleStatus = "active" | "backed_off" | "hibernating" | null;
@@ -46,6 +48,8 @@ export function TeamOverview({
   initialEscalations,
   initialCost,
   initialMessages,
+  initialStartedAt,
+  initialMaxRuntimeMinutes,
 }: TeamOverviewProps) {
   const [agents, setAgents] = useState(initialAgents);
   const [tasks, setTasks] = useState(initialTasks);
@@ -56,6 +60,8 @@ export function TeamOverview({
   const [idleStatus, setIdleStatus] = useState<IdleStatus>(null);
   const [teamStatus, setTeamStatus] = useState(initialTeamStatus);
   const [toggling, setToggling] = useState(false);
+  const [startedAt, setStartedAt] = useState<string | null>(initialStartedAt ?? null);
+  const [maxRuntimeMinutes, setMaxRuntimeMinutes] = useState<number | null>(initialMaxRuntimeMinutes ?? null);
   const [taskEvents, setTaskEvents] = useState<TimelineEvent[]>([]);
   const [escalationEvents, setEscalationEvents] = useState<TimelineEvent[]>([]);
 
@@ -145,6 +151,12 @@ export function TeamOverview({
         }
         case "team:status":
           setTeamStatus(event.data.status);
+          if (event.data.startedAt) setStartedAt(event.data.startedAt);
+          if (event.data.maxRuntimeMinutes !== undefined) setMaxRuntimeMinutes(event.data.maxRuntimeMinutes);
+          if (event.data.status === "stopped") {
+            setStartedAt(null);
+            setMaxRuntimeMinutes(null);
+          }
           break;
         case "idle:nudge":
           setIdleStatus(event.data.status);
@@ -170,7 +182,16 @@ export function TeamOverview({
       const endpoint = isRunning ? "stop" : "start";
       const res = await fetch(`/api/teams/${teamId}/${endpoint}`, { method: "POST" });
       if (res.ok) {
+        const data = await res.json();
         setTeamStatus(isRunning ? "stopped" : "running");
+        if (!isRunning && data.startedAt) {
+          setStartedAt(data.startedAt);
+          setMaxRuntimeMinutes(data.maxRuntimeMinutes ?? null);
+        }
+        if (isRunning) {
+          setStartedAt(null);
+          setMaxRuntimeMinutes(null);
+        }
         toast(isRunning ? "Team stopped" : "Team started", "success");
       } else {
         toast(`Failed to ${endpoint} team`, "error");
@@ -226,6 +247,12 @@ export function TeamOverview({
         />
         <Separator />
         <MetricInline label="Cost" value={cost > 0 ? `$${cost.toFixed(2)}` : "--"} color="#8b5cf6" />
+        {isRunning && startedAt && (
+          <>
+            <Separator />
+            <RuntimeTimer startedAt={startedAt} maxRuntimeMinutes={maxRuntimeMinutes} />
+          </>
+        )}
       </div>
 
       {/* Alerts */}
@@ -308,6 +335,69 @@ function Separator() {
       className="w-px h-4 shrink-0"
       style={{ backgroundColor: "var(--border)" }}
     />
+  );
+}
+
+function RuntimeTimer({ startedAt, maxRuntimeMinutes }: { startedAt: string; maxRuntimeMinutes: number | null }) {
+  const [now, setNow] = useState(Date.now());
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  const startMs = new Date(startedAt).getTime();
+  const elapsedSec = Math.max(0, Math.floor((now - startMs) / 1000));
+
+  const h = Math.floor(elapsedSec / 3600);
+  const m = Math.floor((elapsedSec % 3600) / 60);
+  const s = elapsedSec % 60;
+  const elapsed = h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    : `${m}:${String(s).padStart(2, "0")}`;
+
+  let remaining: string | null = null;
+  let urgency: "normal" | "warning" | "critical" = "normal";
+  if (maxRuntimeMinutes && maxRuntimeMinutes > 0) {
+    const totalSec = maxRuntimeMinutes * 60;
+    const leftSec = Math.max(0, totalSec - elapsedSec);
+    const lh = Math.floor(leftSec / 3600);
+    const lm = Math.floor((leftSec % 3600) / 60);
+    const ls = leftSec % 60;
+    remaining = lh > 0
+      ? `${lh}:${String(lm).padStart(2, "0")}:${String(ls).padStart(2, "0")}`
+      : `${lm}:${String(ls).padStart(2, "0")}`;
+    if (leftSec <= 300) urgency = "critical";
+    else if (leftSec <= 900) urgency = "warning";
+  }
+
+  const dotColor = urgency === "critical" ? "#ef4444" : urgency === "warning" ? "#f59e0b" : "#22c55e";
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className="w-1.5 h-1.5 rounded-full shrink-0"
+        style={{
+          backgroundColor: dotColor,
+          animation: urgency === "critical" ? "pulse-glow 1s infinite" : undefined,
+        }}
+      />
+      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>Runtime</span>
+      <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--foreground)" }}>
+        {elapsed}
+      </span>
+      {remaining && (
+        <span
+          className="text-xs tabular-nums"
+          style={{ color: urgency === "critical" ? "#ef4444" : urgency === "warning" ? "#f59e0b" : "var(--muted-foreground)" }}
+        >
+          ({remaining} left)
+        </span>
+      )}
+    </div>
   );
 }
 
